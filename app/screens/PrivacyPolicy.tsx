@@ -62,7 +62,7 @@ const PrivacyPolicyScreen = () => {
         <Text style={[styles.content, { color: colors.text }]}>
           {"\n\n"}
           <Text style={[styles.subHeading1, { color: colors.subHeading }]}>
-            Last Updated: [23-02-2025]
+            Last Updated: [23-09-2025]
           </Text>
           {"\n\n"}
           <Text style={styles.intro}>

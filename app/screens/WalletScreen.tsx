@@ -5,7 +5,16 @@ export default function Wallet() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.centered}>
-        <Text style={styles.comingSoon}>Coming Soon...</Text>
+        <View style={styles.box}>
+          <Text style={styles.notice}>
+            Wallet access And The Whole Node-Link Project is currently paused due to Indian regulatory requirements.
+            {"\n\n"}
+            As per documents signed with the concerned Government office, this app
+            cannot be publicly released on the App Store or Play Store at this time.
+            {"\n\n"}
+            Development will resume after official clearance.
+          </Text>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -14,15 +23,23 @@ export default function Wallet() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: "#0a0a0aff",
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 24, // ensures equal left-right padding
   },
-  comingSoon: {
-    fontSize: 24,
-    fontWeight: "bold",
+  box: {
+    width: "100%",
+    alignItems: "center",
+  },
+  notice: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    color: "#f8f4f4ff",
+    lineHeight: 26,
   },
 });

@@ -3,7 +3,7 @@ export const validateName = (text: string): boolean => {
 };
 
 export const validateUsername = (text: string): boolean => {
-  return /^[a-zA-Z0-9]{0,20}$/.test(text);
+  return /^[a-zA-Z0-9_]{3,50}$/.test(text);
 };
 
 export const validateBio = (text: string): boolean => {
