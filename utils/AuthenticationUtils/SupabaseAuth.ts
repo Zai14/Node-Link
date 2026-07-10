@@ -8,7 +8,7 @@
 // The corresponding `resolve_wallet_auth_user()` function in
 // supabase_migration.sql handles the server-side creation of auth users.
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { AppState, AppStateStatus } from "react-native";
 import { createHash } from "crypto";
 import { supabase } from "../../backend/Supabase/Supabase";

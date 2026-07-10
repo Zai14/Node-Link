@@ -251,10 +251,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_receiver_status ON public.messages (rece
 -- RLS
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
--- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
--- The app currently uses the anon key and manages auth via wallet signatures,
--- so current_user is always 'anon' and cannot be used for participant checks.
-
 CREATE POLICY "messages_select_participants"
   ON public.messages FOR SELECT
   USING (
@@ -402,8 +398,6 @@ CREATE TRIGGER trg_muted_conversations_updated_at
 CREATE INDEX IF NOT EXISTS idx_muted_conversations_wallet ON public.muted_conversations (wallet_address);
 
 ALTER TABLE public.muted_conversations ENABLE ROW LEVEL SECURITY;
-
--- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 
 CREATE POLICY "muted_conversations_select_own"
   ON public.muted_conversations FOR SELECT
