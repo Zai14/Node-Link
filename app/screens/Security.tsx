@@ -1,14 +1,15 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
-  TouchableWithoutFeedback,
   ActivityIndicator,
   Alert,
   StyleSheet,
   Pressable,
   ScrollView,
   TouchableOpacity,
+  Animated,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -20,6 +21,7 @@ import { handlePrivatePress } from "../../utils/Security/HandlePrivateKeyPress";
 import { handleChangeKey } from "../../utils/Security/HandleChangeKey";
 import { handleValidateKeys } from "../../utils/Security/HandleValidateKeys";
 import { useThemeToggle } from "../../utils/GlobalUtils/ThemeProvider";
+import { copyToClipboard } from "../../utils/GlobalUtils/CopyToClipboard";
 import {
   getSessionStatus,
 } from "../../utils/AuthenticationUtils/SupabaseAuth";
@@ -30,9 +32,52 @@ interface SharedItem {
   sharedSecret: string;
 }
 
-// Add proper typing for navigation
 type SecurityScreenNavigationProp = StackNavigationProp<any>;
 
+// ─── Reusable Animated Pressable ────────────────────────────────────────────
+const AnimatedPressable: React.FC<{
+  onPress?: () => void;
+  onLongPress?: () => void;
+  disabled?: boolean;
+  style?: any;
+  children: React.ReactNode;
+}> = ({ onPress, onLongPress, disabled, style, children }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      disabled={disabled}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+    >
+      <Animated.View style={[style, { transform: [{ scale: scaleAnim }] }]}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+};
+
+// ─── Component ─────────────────────────────────────────────────────────────
 const SecurityScreen: React.FC = () => {
   const navigation = useNavigation<SecurityScreenNavigationProp>();
   const { currentTheme } = useThemeToggle();
@@ -57,7 +102,14 @@ const SecurityScreen: React.FC = () => {
   const [sessionRefreshCount, setSessionRefreshCount] = useState(0);
   const [sessionLoading, setSessionLoading] = useState(true);
 
-  // Extracted to variable to allow refresh calls inside useFocusEffect
+  // Copy feedback states
+  const [copiedKey, setCopiedKey] = useState<"public" | "compressed" | "private" | null>(null);
+
+  const showCopiedFeedback = (type: "public" | "compressed" | "private") => {
+    setCopiedKey(type);
+    setTimeout(() => setCopiedKey(null), 1500);
+  };
+
   const loadSharedSecrets = useCallback(async () => {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
@@ -99,13 +151,11 @@ const SecurityScreen: React.FC = () => {
     }
   }, []);
 
-  // Only resets on mount/unmount
   useEffect(() => {
     setKeysValid(false);
     setChangeSuccess(false);
   }, []);
 
-  // Use useFocusEffect to always refetch data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
@@ -121,7 +171,6 @@ const SecurityScreen: React.FC = () => {
         );
         await loadSharedSecrets();
 
-        // Fetch Supabase Auth session status
         const status = await getSessionStatus();
         if (isActive) {
           setSessionActive(status.active);
@@ -130,7 +179,6 @@ const SecurityScreen: React.FC = () => {
           setSessionLoading(false);
         }
 
-        // Don't set state if unmounted
         if (isActive) setLoading(false);
       };
 
@@ -159,11 +207,7 @@ const SecurityScreen: React.FC = () => {
   };
 
   const maskString = (str: string | null): string =>
-    str
-      ? Array.from({ length: str.length })
-          .map(() => (Math.random() > 0.5 ? "." : "-"))
-          .join("")
-      : "";
+    str ? "\u{2022}".repeat(str.length) : "";
 
   const toggleSecretVisibility = (key: string) => {
     setVisibleSecrets((prev) => ({
@@ -172,8 +216,30 @@ const SecurityScreen: React.FC = () => {
     }));
   };
 
+  const handleCopyPublicKey = async () => {
+    if (userPublicKey) {
+      await copyToClipboard(userPublicKey);
+      showCopiedFeedback("public");
+    }
+  };
+
+  const handleCopyCompressedKey = async () => {
+    if (compressedPublicKey) {
+      await copyToClipboard(compressedPublicKey);
+      showCopiedFeedback("compressed");
+    }
+  };
+
+  const handleCopyPrivateKey = async () => {
+    if (privateKey && showPrivate) {
+      await copyToClipboard(privateKey);
+      showCopiedFeedback("private");
+    }
+  };
+
   const styles = getStyles(isDarkMode);
 
+  // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.headerContainer}>
@@ -195,47 +261,119 @@ const SecurityScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" style={{ marginTop: 40 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={isDarkMode ? "#007AFF" : "#007AFF"} />
+          <Text style={styles.loadingText}>Loading security data...</Text>
+        </View>
       ) : (
         <ScrollView
           style={styles.scrollViewContainer}
           showsVerticalScrollIndicator={true}
           contentContainerStyle={styles.scrollViewContent}
         >
-          <View style={styles.contentContainer}>
-            {/* User Keys */}
-            <Text style={styles.label}>Public Key:</Text>
-            <Text style={styles.keyBox}>
-              {userPublicKey ?? "No key found."}
-            </Text>
+          {/* ═══════════════ Crypto Keys Section ═══════════════ */}
+          <Text style={styles.sectionHeader}>CRYPTO KEYS</Text>
+          <View style={styles.cardSection}>
 
-            <Text style={styles.label}>Compressed Public Key:</Text>
-            <Text style={styles.keyBox}>
-              {compressedPublicKey ?? "No compressed key found."}
-            </Text>
+            {/* Public Key */}
+            <Pressable style={styles.keyRow} onPress={handleCopyPublicKey}>
+              <View style={styles.keyLabelRow}>
+                <Ionicons
+                  name="key-outline"
+                  size={16}
+                  color={isDarkMode ? "#8E8E93" : "#8E8E93"}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.keyLabel}>Public Key</Text>
+              </View>
+              <View style={styles.keyValueRow}>
+                <Text style={styles.keyValue} numberOfLines={1} ellipsizeMode="middle">
+                  {userPublicKey ?? "No key found."}
+                </Text>
+                {copiedKey === "public" ? (
+                  <Ionicons name="checkmark-circle" size={18} color="#34C759" style={{ marginLeft: 8 }} />
+                ) : (
+                  <Ionicons name="copy-outline" size={16} color={isDarkMode ? "#8E8E93" : "#8E8E93"} style={{ marginLeft: 8 }} />
+                )}
+              </View>
+              {copiedKey === "public" && (
+                <Text style={styles.copiedBadge}>Copied!</Text>
+              )}
+            </Pressable>
 
-            <Text style={styles.label}>Private Key:</Text>
-            <TouchableWithoutFeedback
+            <View style={styles.keyDivider} />
+
+            {/* Compressed Public Key */}
+            <Pressable style={styles.keyRow} onPress={handleCopyCompressedKey}>
+              <View style={styles.keyLabelRow}>
+                <Ionicons
+                  name="code-slash-outline"
+                  size={16}
+                  color={isDarkMode ? "#8E8E93" : "#8E8E93"}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.keyLabel}>Compressed Key</Text>
+              </View>
+              <View style={styles.keyValueRow}>
+                <Text style={styles.keyValue} numberOfLines={1} ellipsizeMode="middle">
+                  {compressedPublicKey ?? "No compressed key found."}
+                </Text>
+                {copiedKey === "compressed" ? (
+                  <Ionicons name="checkmark-circle" size={18} color="#34C759" style={{ marginLeft: 8 }} />
+                ) : (
+                  <Ionicons name="copy-outline" size={16} color={isDarkMode ? "#8E8E93" : "#8E8E93"} style={{ marginLeft: 8 }} />
+                )}
+              </View>
+              {copiedKey === "compressed" && (
+                <Text style={styles.copiedBadge}>Copied!</Text>
+              )}
+            </Pressable>
+
+            <View style={styles.keyDivider} />
+
+            {/* Private Key */}
+            <Pressable
+              style={styles.keyRow}
               onPress={() => handlePrivatePress(showPrivate, setShowPrivate)}
+              onLongPress={showPrivate ? handleCopyPrivateKey : undefined}
             >
-              <View style={styles.privateKeyRow}>
-                <Text style={styles.keyBox}>
+              <View style={styles.keyLabelRow}>
+                <Ionicons
+                  name={showPrivate ? "eye-off-outline" : "eye-outline"}
+                  size={16}
+                  color={isDarkMode ? "#FF9500" : "#FF9500"}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.keyLabel}>Private Key</Text>
+                <View style={styles.tapHintBadge}>
+                  <Text style={styles.tapHintText}>
+                    {showPrivate ? "Tap to hide" : "Tap to reveal"}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.keyValueRow}>
+                <Text style={styles.keyValue} numberOfLines={1} ellipsizeMode="middle">
                   {showPrivate ? privateKey : maskString(privateKey)}
                 </Text>
+                {showPrivate && (
+                  copiedKey === "private" ? (
+                    <Ionicons name="checkmark-circle" size={18} color="#34C759" style={{ marginLeft: 8 }} />
+                  ) : (
+                    <Ionicons name="copy-outline" size={16} color={isDarkMode ? "#8E8E93" : "#8E8E93"} style={{ marginLeft: 8 }} />
+                  )
+                )}
               </View>
-            </TouchableWithoutFeedback>
+              {copiedKey === "private" && (
+                <Text style={styles.copiedBadge}>Copied!</Text>
+              )}
+            </Pressable>
+          </View>
 
-            {/* Actions */}
-            <View style={styles.buttonWrapper}>
-              <Pressable
-                style={[
-                  styles.button,
-                  actionLoading
-                    ? styles.neutralButton
-                    : changeSuccess
-                    ? styles.blueOutline
-                    : styles.neutralButton,
-                ]}
+          {/* ═══════════════ Actions Section ═══════════════ */}
+          <Text style={styles.sectionHeader}>ACTIONS</Text>
+          <View style={styles.actionsCard}>
+            <View style={styles.actionsRow}>
+              <AnimatedPressable
                 onPress={() => {
                   if (!actionLoading && !changeSuccess) {
                     Alert.alert(
@@ -265,159 +403,188 @@ const SecurityScreen: React.FC = () => {
                     );
                   }
                 }}
+                disabled={actionLoading}
+                style={[
+                  styles.actionButton,
+                  changeSuccess
+                    ? styles.actionButtonSuccess
+                    : styles.actionButtonDefault,
+                ]}
               >
+                <Ionicons
+                  name={actionLoading ? "sync-circle" : changeSuccess ? "checkmark-circle" : "refresh-circle"}
+                  size={22}
+                  color={changeSuccess ? "#007AFF" : isDarkMode ? "#ccc" : "#666"}
+                  style={{ marginRight: 6 }}
+                />
                 <Text
-                  style={
-                    changeSuccess ? styles.blueText : styles.buttonTextDefault
-                  }
+                  style={[
+                    styles.actionButtonText,
+                    changeSuccess && styles.actionButtonTextSuccess,
+                  ]}
                 >
                   {actionLoading
                     ? "Changing..."
                     : changeSuccess
-                    ? "Successful"
+                    ? "Key Changed Successfully"
                     : "Change Key Pair"}
                 </Text>
-              </Pressable>
+              </AnimatedPressable>
 
-              <Pressable
-                style={[
-                  styles.button,
-                  keysValid ? styles.greenOutline : styles.neutralButton,
-                ]}
+              <AnimatedPressable
                 onPress={() => handleValidateKeys(walletAddress, setKeysValid)}
+                style={[
+                  styles.actionButton,
+                  keysValid
+                    ? styles.actionButtonValid
+                    : styles.actionButtonDefault,
+                ]}
               >
+                <Ionicons
+                  name={keysValid ? "shield-checkmark" : "shield-outline"}
+                  size={22}
+                  color={keysValid ? "#34C759" : isDarkMode ? "#ccc" : "#666"}
+                  style={{ marginRight: 6 }}
+                />
                 <Text
-                  style={
-                    keysValid ? styles.greenText : styles.buttonTextDefault
-                  }
+                  style={[
+                    styles.actionButtonText,
+                    keysValid && styles.actionButtonTextValid,
+                  ]}
                 >
-                  {keysValid ? "Valid Keys" : "Validate Keys"}
+                  {keysValid ? "Keys are Valid" : "Validate Keys"}
                 </Text>
-              </Pressable>
-            </View>
-
-            {/* Supabase Auth Session Status */}
-            <View style={styles.sessionSection}>
-              <Text style={styles.label}>Authentication Session</Text>
-              <View style={styles.sessionCard}>
-                {sessionLoading ? (
-                  <ActivityIndicator size="small" color={isDarkMode ? "#aaa" : "#888"} />
-                ) : (
-                  <>
-                    {/* Status row */}
-                    <View style={styles.sessionRow}>
-                      <View style={styles.sessionStatusLeft}>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor:
-                                sessionActive === null
-                                  ? "#888"
-                                  : sessionActive
-                                  ? "#34C759"
-                                  : "#FF3B30",
-                            },
-                          ]}
-                        />
-                        <Text style={styles.sessionLabel}>Status</Text>
-                      </View>
-                      <Text
-                        style={[
-                          styles.sessionValue,
-                          {
-                            color:
-                              sessionActive === null
-                                ? "#888"
-                                : sessionActive
-                                ? "#34C759"
-                                : "#FF3B30",
-                          },
-                        ]}
-                      >
-                        {sessionActive === null
-                          ? "Unknown"
-                          : sessionActive
-                          ? "Active"
-                          : "Not connected"}
-                      </Text>
-                    </View>
-
-                    {/* Token expiry row */}
-                    <View style={styles.sessionRow}>
-                      <Text style={styles.sessionLabel}>Token Expiry</Text>
-                      <Text style={styles.sessionValue}>
-                        {sessionActive && sessionExpiresAt
-                          ? formatExpiry(sessionExpiresAt)
-                          : "—"}
-                      </Text>
-                    </View>
-
-                    {/* Refresh count row */}
-                    <View style={[styles.sessionRow, { marginBottom: 0 }]}>
-                      <Text style={styles.sessionLabel}>Refreshes</Text>
-                      <Text style={styles.sessionValue}>
-                        {sessionRefreshCount > 0
-                          ? `${sessionRefreshCount} time${
-                              sessionRefreshCount !== 1 ? "s" : ""
-                            }`
-                          : "None yet"}
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
-
-            {/* Shared Secrets - Non-scrollable Container */}
-            <View style={styles.sharedSecretsContainer}>
-              <Text style={styles.label}>Shared Secrets</Text>
-
-              <View style={styles.sharedSecretsContent}>
-                {sharedList.length === 0 ? (
-                  <Text style={styles.infoText}>No shared secrets found.</Text>
-                ) : (
-                  sharedList.map((item, index) => (
-                    <View key={item.sharedPublicKey}>
-                      <View style={styles.sharedItem}>
-                        <View style={styles.sharedRow}>
-                          <Text style={styles.sharedLabel}>Name:</Text>
-                          <Text style={styles.sharedValueName}>
-                            {item.name}
-                          </Text>
-                        </View>
-                        <View style={styles.sharedRow}>
-                          <Text style={styles.sharedLabel}>Public Key:</Text>
-                          <Text style={styles.sharedValue}>
-                            {item.sharedPublicKey}
-                          </Text>
-                        </View>
-                        <Pressable
-                          onPress={() =>
-                            toggleSecretVisibility(item.sharedPublicKey)
-                          }
-                        >
-                          <View style={styles.sharedRowLast}>
-                            <Text style={styles.sharedLabel}>
-                              Shared Secret:
-                            </Text>
-                            <Text style={styles.sharedValue}>
-                              {visibleSecrets[item.sharedPublicKey]
-                                ? item.sharedSecret
-                                : maskString(item.sharedSecret)}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      </View>
-                      {index < sharedList.length - 1 && (
-                        <View style={styles.separator} />
-                      )}
-                    </View>
-                  ))
-                )}
-              </View>
+              </AnimatedPressable>
             </View>
           </View>
+
+          {/* ═══════════════ Authentication Session ═══════════════ */}
+          <Text style={styles.sectionHeader}>AUTHENTICATION SESSION</Text>
+          <View style={styles.sessionCard}>
+            {sessionLoading ? (
+              <ActivityIndicator size="small" color={isDarkMode ? "#aaa" : "#888"} />
+            ) : (
+              <>
+                <View style={styles.sessionRow}>
+                  <View style={styles.sessionStatusLeft}>
+                    <View
+                      style={[
+                        styles.statusDot,
+                        {
+                          backgroundColor:
+                            sessionActive === null
+                              ? "#888"
+                              : sessionActive
+                              ? "#34C759"
+                              : "#FF3B30",
+                        },
+                      ]}
+                    />
+                    <Text style={styles.sessionLabel}>Status</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.sessionValue,
+                      {
+                        color:
+                          sessionActive === null
+                            ? "#888"
+                            : sessionActive
+                            ? "#34C759"
+                            : "#FF3B30",
+                      },
+                    ]}
+                  >
+                    {sessionActive === null
+                      ? "Unknown"
+                      : sessionActive
+                      ? "Active"
+                      : "Not connected"}
+                  </Text>
+                </View>
+                <View style={styles.sessionDivider} />
+                <View style={styles.sessionRow}>
+                  <Text style={styles.sessionLabel}>Token Expiry</Text>
+                  <Text style={styles.sessionValue}>
+                    {sessionActive && sessionExpiresAt
+                      ? formatExpiry(sessionExpiresAt)
+                      : "\u2014"}
+                  </Text>
+                </View>
+                <View style={styles.sessionDivider} />
+                <View style={[styles.sessionRow, { marginBottom: 0 }]}>
+                  <Text style={styles.sessionLabel}>Refreshes</Text>
+                  <Text style={styles.sessionValue}>
+                    {sessionRefreshCount > 0
+                      ? `${sessionRefreshCount} time${sessionRefreshCount !== 1 ? "s" : ""}`
+                      : "None yet"}
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* ═══════════════ Shared Secrets Section ═══════════════ */}
+          <Text style={styles.sectionHeader}>SHARED SECRETS</Text>
+          <View style={styles.sharedSecretsCard}>
+            {sharedList.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={40}
+                  color={isDarkMode ? "#555" : "#ccc"}
+                />
+                <Text style={styles.emptyStateText}>No shared secrets found.</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Shared secrets are created when you exchange encrypted messages with another user.
+                </Text>
+              </View>
+            ) : (
+              sharedList.map((item, index) => (
+                <View key={item.sharedPublicKey}>
+                  <View style={styles.sharedItem}>
+                    <View style={styles.sharedHeaderRow}>
+                      <Ionicons
+                        name="person-circle-outline"
+                        size={20}
+                        color={isDarkMode ? "#8E8E93" : "#8E8E93"}
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text style={styles.sharedName}>{item.name}</Text>
+                    </View>
+                    <View style={styles.sharedDetailRow}>
+                      <Text style={styles.sharedDetailLabel}>Public Key</Text>
+                      <Text style={styles.sharedDetailValue} numberOfLines={1} ellipsizeMode="middle">
+                        {item.sharedPublicKey}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.sharedSecretRow}
+                      onPress={() => toggleSecretVisibility(item.sharedPublicKey)}
+                    >
+                      <Text style={styles.sharedDetailLabel}>Shared Secret</Text>
+                      <View style={styles.sharedSecretValueRow}>
+                        <Text style={styles.sharedSecretValue} numberOfLines={1} ellipsizeMode="middle">
+                          {visibleSecrets[item.sharedPublicKey]
+                            ? item.sharedSecret
+                            : maskString(item.sharedSecret)}
+                        </Text>
+                        <Ionicons
+                          name={visibleSecrets[item.sharedPublicKey] ? "eye-off-outline" : "eye-outline"}
+                          size={16}
+                          color={isDarkMode ? "#8E8E93" : "#8E8E93"}
+                          style={{ marginLeft: 6 }}
+                        />
+                      </View>
+                    </Pressable>
+                  </View>
+                  {index < sharedList.length - 1 && <View style={styles.sharedDivider} />}
+                </View>
+              ))
+            )}
+          </View>
+
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       )}
     </SafeAreaView>
@@ -426,19 +593,24 @@ const SecurityScreen: React.FC = () => {
 
 export default SecurityScreen;
 
+// ─── Styles ─────────────────────────────────────────────────────────────────
 const getStyles = (isDarkMode: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
+
+    // ── Header ──────────────────────────────────────────────────────────────
     headerContainer: {
       position: "relative",
       flexDirection: "row",
       alignItems: "center",
-      height: 40,
+      height: 44,
       paddingHorizontal: 16,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
     },
     backButton: {
       width: 100,
@@ -462,150 +634,207 @@ const getStyles = (isDarkMode: boolean) =>
       zIndex: 0,
     },
     headerTitleText: {
-      fontSize: 20,
+      fontSize: 17,
       fontWeight: "600",
       fontFamily: "SF-Pro-Text-Medium",
       color: isDarkMode ? "#fff" : "#333333",
     },
+
+    // ── Loading ────────────────────────────────────────────────────────────
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    loadingText: {
+      marginTop: 12,
+      fontSize: 15,
+      color: isDarkMode ? "#aaa" : "#888",
+    },
+
+    // ── Scroll ──────────────────────────────────────────────────────────────
     scrollViewContainer: {
       flex: 1,
     },
     scrollViewContent: {
       flexGrow: 1,
-      paddingBottom: 20,
+      paddingBottom: 40,
     },
-    contentContainer: {
-      marginTop: 20,
-      paddingHorizontal: 20,
-    },
-    label: {
-      fontSize: 16,
-      fontWeight: "bold",
-      marginBottom: 8,
-      color: isDarkMode ? "#fff" : "#333",
-    },
-    keyBox: {
-      fontSize: 15,
-      backgroundColor: isDarkMode ? "#121212" : "#fff",
-      padding: 12,
-      borderRadius: 8,
-      marginBottom: 24,
-      fontFamily: "monospace",
-      color: isDarkMode ? "#fff" : "#333",
-    },
-    privateKeyRow: {
-      marginBottom: 24,
-    },
-    buttonWrapper: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      gap: 8,
-      marginBottom: 32,
-      marginTop: -25,
-    },
-    button: {
-      flex: 1,
-      height: 50,
-      paddingVertical: 15,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-    },
-    neutralButton: {
-      backgroundColor: "transparent",
-      borderColor: isDarkMode ? "#555" : "#999",
-    },
-    blueOutline: {
-      backgroundColor: "transparent",
-      borderColor: "#007AFF",
-    },
-    greenOutline: {
-      backgroundColor: "transparent",
-      borderColor: "#34C759",
-    },
-    blueText: {
-      fontSize: 16,
+
+    // ── Section Headers ────────────────────────────────────────────────────
+    sectionHeader: {
+      fontSize: 13,
       fontWeight: "600",
-      color: "#007AFF",
+      color: isDarkMode ? "#8E8E93" : "#6D6D72",
+      letterSpacing: 0.5,
+      marginTop: 24,
+      marginBottom: 8,
+      marginHorizontal: 20,
     },
-    greenText: {
-      fontSize: 16,
+
+    // ── Card Sections ──────────────────────────────────────────────────────
+    cardSection: {
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      borderRadius: 12,
+      marginHorizontal: 16,
+      paddingVertical: 4,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
+
+    // ── Key Rows ───────────────────────────────────────────────────────────
+    keyRow: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      minHeight: 48,
+    },
+    keyLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    keyLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: isDarkMode ? "#8E8E93" : "#8E8E93",
+      textTransform: "uppercase",
+      letterSpacing: 0.3,
+    },
+    tapHintBadge: {
+      marginLeft: 8,
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F2F2F7",
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    tapHintText: {
+      fontSize: 10,
+      color: isDarkMode ? "#8E8E93" : "#8E8E93",
+      fontWeight: "500",
+    },
+    keyValueRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 2,
+    },
+    keyValue: {
+      flex: 1,
+      fontSize: 14,
+      fontFamily: Platform.select({ ios: "Courier", android: "monospace" }),
+      color: isDarkMode ? "#fff" : "#333",
+    },
+    copiedBadge: {
+      position: "absolute",
+      right: 16,
+      top: 12,
+      fontSize: 12,
       fontWeight: "600",
       color: "#34C759",
     },
-    buttonTextDefault: {
-      fontSize: 16,
+    keyDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      marginLeft: 16,
+    },
+
+    // ── Actions ────────────────────────────────────────────────────────────
+    actionsCard: {
+      marginHorizontal: 16,
+    },
+    actionsRow: {
+      flexDirection: "column",
+      gap: 10,
+    },
+    actionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    actionButtonDefault: {
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
+      borderColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.06,
+          shadowRadius: 3,
+        },
+        android: { elevation: 1 },
+      }),
+    },
+    actionButtonSuccess: {
+      backgroundColor: isDarkMode ? "#1C2A1C" : "#F0FFF0",
+      borderColor: "#007AFF",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#007AFF",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.15,
+          shadowRadius: 3,
+        },
+        android: { elevation: 1 },
+      }),
+    },
+    actionButtonValid: {
+      backgroundColor: isDarkMode ? "#1A2E1A" : "#F0FFF0",
+      borderColor: "#34C759",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#34C759",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.15,
+          shadowRadius: 3,
+        },
+        android: { elevation: 1 },
+      }),
+    },
+    actionButtonText: {
+      fontSize: 15,
       fontWeight: "600",
       color: isDarkMode ? "#ccc" : "#666",
     },
-    infoText: {
-      fontSize: 14,
-      color: isDarkMode ? "#aaa" : "#888",
-      textAlign: "center",
-      marginTop: 10,
+    actionButtonTextSuccess: {
+      color: "#007AFF",
     },
-    sharedSecretsContainer: {
-      marginBottom: 20,
-    },
-    sharedSecretsContent: {
-      backgroundColor: isDarkMode ? "#222" : "#fff",
-      borderRadius: 15,
-      padding: 8,
-    },
-    sharedItem: {
-      backgroundColor: isDarkMode ? "#333" : "#f9f9f9",
-      padding: 12,
-      borderRadius: 8,
-    },
-    sharedRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 8,
-    },
-    sharedRowLast: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    sharedLabel: {
-      width: 100,
-      fontSize: 14,
-      fontWeight: "600",
-      color: isDarkMode ? "#fff" : "#333",
-    },
-    sharedValue: {
-      flex: 1,
-      fontSize: 14,
-      color: isDarkMode ? "#fff" : "#555",
-      marginLeft: 8,
-    },
-    sharedValueName: {
-      flex: 1,
-      fontSize: 15,
-      color: isDarkMode ? "#fff" : "#555",
-      marginLeft: 8,
-    },
-    separator: {
-      height: 1,
-      backgroundColor: isDarkMode ? "#444" : "#e0e0e0",
-      marginVertical: 4,
+    actionButtonTextValid: {
+      color: "#34C759",
     },
 
-    // Supabase session status styles
-    sessionSection: {
-      marginBottom: 20,
-    },
+    // ── Session Card ───────────────────────────────────────────────────────
     sessionCard: {
-      backgroundColor: isDarkMode ? "#222" : "#fff",
-      borderRadius: 15,
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      borderRadius: 12,
       padding: 16,
+      marginHorizontal: 16,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     sessionRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 14,
+      marginBottom: 12,
     },
     sessionStatusLeft: {
       flexDirection: "row",
@@ -613,7 +842,7 @@ const getStyles = (isDarkMode: boolean) =>
     },
     sessionLabel: {
       fontSize: 14,
-      fontWeight: "600",
+      fontWeight: "500",
       color: isDarkMode ? "#ddd" : "#333",
     },
     sessionValue: {
@@ -625,5 +854,100 @@ const getStyles = (isDarkMode: boolean) =>
       height: 10,
       borderRadius: 5,
       marginRight: 8,
+    },
+    sessionDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      marginBottom: 12,
+    },
+
+    // ── Shared Secrets ────────────────────────────────────────────────────
+    sharedSecretsCard: {
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      borderRadius: 12,
+      marginHorizontal: 16,
+      padding: 12,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    emptyState: {
+      alignItems: "center",
+      paddingVertical: 32,
+    },
+    emptyStateText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: isDarkMode ? "#aaa" : "#888",
+      marginTop: 12,
+    },
+    emptyStateSubtext: {
+      fontSize: 13,
+      color: isDarkMode ? "#555" : "#aaa",
+      textAlign: "center",
+      marginTop: 6,
+      paddingHorizontal: 20,
+      lineHeight: 18,
+    },
+    sharedItem: {
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F9F9F9",
+      borderRadius: 10,
+      padding: 14,
+    },
+    sharedHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    sharedName: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: isDarkMode ? "#fff" : "#333",
+    },
+    sharedDetailRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    sharedDetailLabel: {
+      width: 90,
+      fontSize: 13,
+      fontWeight: "500",
+      color: isDarkMode ? "#8E8E93" : "#8E8E93",
+    },
+    sharedDetailValue: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: Platform.select({ ios: "Courier", android: "monospace" }),
+      color: isDarkMode ? "#fff" : "#555",
+    },
+    sharedSecretRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    sharedSecretValueRow: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    sharedSecretValue: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: Platform.select({ ios: "Courier", android: "monospace" }),
+      color: isDarkMode ? "#fff" : "#555",
+    },
+    sharedDivider: {
+      height: 8,
+    },
+
+    // ── Misc ──────────────────────────────────────────────────────────────
+    bottomSpacer: {
+      height: 40,
     },
   });
