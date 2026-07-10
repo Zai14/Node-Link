@@ -31,7 +31,7 @@
     "@react-navigation/elements": "^2.4.2",
     "@react-navigation/native": "^7.1.9",
     "@react-navigation/stack": "^7.3.2",
-    "@supabase/supabase-js": "^2.104.0",
+    "@supabase/supabase-js": "2.50.0",
     "@types/lodash": "^4.17.20",
     "@walletconnect/client": "^1.8.0",
     "@walletconnect/core": "^2.20.2",

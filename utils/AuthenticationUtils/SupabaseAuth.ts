@@ -5,12 +5,15 @@
 //   email: {wallet}@wallet.nodelink.app
 //   password: wallet_{sha256(wallet)}
 //
-// The corresponding `resolve_wallet_auth_user()` function in
-// supabase_migration.sql handles the server-side creation of auth users.
+// On first use, supabase.auth.signUp() creates the auth user (requires
+// "Confirm email" to be DISABLED in Supabase project Auth settings).
+// On subsequent calls, supabase.auth.signInWithPassword() signs in.
+// Both methods set raw_user_meta_data.wallet_address for RLS context.
 
 
 import { AppState, AppStateStatus } from "react-native";
-import { createHash } from "crypto";
+import { sha256 } from "@noble/hashes/sha256";
+import { bytesToHex } from "@noble/hashes/utils";
 import { supabase } from "../../backend/Supabase/Supabase";
 
 const WALLET_EMAIL_SUFFIX = "@wallet.nodelink.app";
@@ -89,9 +92,6 @@ export function startTokenRefresh(): void {
 }
 
 /**
- * Stops the proactive refresh timer.
- */
-/**
  * Returns the current session status info.
  */
 export async function getSessionStatus(): Promise<{
@@ -137,18 +137,18 @@ function walletEmail(wallet: string): string {
 function walletPassword(wallet: string): string {
   // Must match the SQL in resolve_wallet_auth_user:
   // 'wallet_' || encode(digest(p_wallet, 'sha256'), 'hex')
-  const hash = createHash("sha256")
-    .update(wallet.toLowerCase())
-    .digest("hex");
+  const hash = bytesToHex(sha256(new TextEncoder().encode(wallet.toLowerCase())));
   return `wallet_${hash}`;
 }
 
 /**
  * Signs into Supabase Auth using the wallet-derived credentials.
- * Creates the Auth user on first call (via signUp); subsequent calls
- * sign in (via signInWithPassword).
+ * On first use calls signUp() to create the auth user (requires
+ * "Confirm email" to be DISABLED in Supabase project settings).
+ * Subsequent calls sign in via signInWithPassword().
  *
- * Call this after the user connects their wallet via WalletConnect.
+ * Both methods embed wallet_address in user_metadata so that the
+ * auth_wallet() SQL function can extract it from auth.jwt() for RLS.
  */
 export async function signInWithWallet(
   walletAddress: string
@@ -157,44 +157,69 @@ export async function signInWithWallet(
     const email = walletEmail(walletAddress);
     const password = walletPassword(walletAddress);
 
-    // Try signing in first (user may already exist)
+    // ---- Attempt 1: sign in (works on subsequent calls) ----
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (signInError) {
-      if (signInError.message?.includes("Invalid login credentials")) {
-        // User doesn't exist or isn't confirmed. Call the SQL function which
-        // creates/confirms the auth user directly (bypasses email confirmation).
-        const { error: rpcError } = await supabase.rpc(
-          "resolve_wallet_auth_user",
-          { p_wallet: walletAddress.toLowerCase() }
-        );
-
-        if (rpcError) {
-          console.error("❌ resolve_wallet_auth_user RPC failed:", rpcError.message);
-          return { error: rpcError.message };
-        }
-
-        // Now sign in with the created credentials
-        const { error: retryError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (retryError) {
-          console.error("❌ Supabase Auth sign-in after RPC failed:", retryError.message);
-          return { error: retryError.message };
-        }
-      } else {
-        console.error("❌ Supabase Auth sign-in failed:", signInError.message);
-        return { error: signInError.message };
-      }
+    if (!signInError) {
+      console.log("✅ Supabase Auth session established for wallet:", walletAddress);
+      return {};
     }
 
-    console.log("✅ Supabase Auth session established for wallet:", walletAddress);
-    return {};
+    // ---- Attempt 2: sign up (works on first call) ----
+    // Requires "Confirm email" to be DISABLED in the Supabase project,
+    // otherwise signUp won't return a session (email_needs_confirmation).
+    if (signInError.message?.includes("Invalid login credentials")) {
+      console.log("🆕 Creating new Supabase Auth user via signUp...");
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            wallet_address: walletAddress.toLowerCase(),
+          },
+        },
+      });
+
+      if (signUpError) {
+        console.error("❌ Supabase Auth signUp failed:", signUpError.message);
+        return { error: signUpError.message };
+      }
+
+      // If signUp returned a session, we're authenticated immediately.
+      // This happens when email confirmation is DISABLED in project settings.
+      if (data?.session) {
+        console.log("✅ Supabase Auth user created and session established:", walletAddress);
+        return {};
+      }
+
+      // Email confirmation is ON — user was created but can't sign in yet.
+      // Fall through to signInWithPassword to get the actual error.
+      console.warn(
+        "⚠️ Email confirmation is enabled in Supabase. " +
+        "SignUp created the user but no session was returned."
+      );
+
+      const { error: retryError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (retryError) {
+        console.error("❌ Sign-in after signUp failed:", retryError.message);
+        return { error: retryError.message };
+      }
+
+      console.log("✅ Supabase Auth session established:", walletAddress);
+      return {};
+    }
+
+    // Some other error (not "Invalid login credentials")
+    console.error("❌ Supabase Auth sign-in failed:", signInError.message);
+    return { error: signInError.message };
   } catch (err: any) {
     console.error("❌ Supabase Auth error:", err?.message || err);
     return { error: err?.message || "Unknown auth error" };

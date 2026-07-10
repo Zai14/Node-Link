@@ -530,7 +530,7 @@ export default function SettingsScreen() {
               style={{ marginRight: 12 }}
             />
             <View>
-              <Text style={styles.itemTitle}>Supabase Auth</Text>
+              <Text style={styles.itemTitle}>Authentication Status</Text>
               <Text
                 style={{
                   fontSize: 12,

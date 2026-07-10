@@ -189,7 +189,7 @@ const SecurityScreen: React.FC = () => {
           />
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
           <Text style={styles.headerTitleText}>Security</Text>
         </View>
       </View>
@@ -298,7 +298,7 @@ const SecurityScreen: React.FC = () => {
 
             {/* Supabase Auth Session Status */}
             <View style={styles.sessionSection}>
-              <Text style={styles.label}>Supabase Auth Session</Text>
+              <Text style={styles.label}>Authentication Session</Text>
               <View style={styles.sessionCard}>
                 {sessionLoading ? (
                   <ActivityIndicator size="small" color={isDarkMode ? "#aaa" : "#888"} />
@@ -433,6 +433,7 @@ const getStyles = (isDarkMode: boolean) =>
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
     headerContainer: {
+      position: "relative",
       flexDirection: "row",
       alignItems: "center",
       height: 40,
@@ -440,8 +441,10 @@ const getStyles = (isDarkMode: boolean) =>
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
     backButton: {
+      width: 100,
       flexDirection: "row",
       alignItems: "center",
+      zIndex: 1,
     },
     backButtonText: {
       fontSize: 17,

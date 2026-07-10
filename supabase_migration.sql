@@ -160,7 +160,7 @@ CREATE POLICY "profiles_delete_own"
 -- ================================================================
 CREATE TABLE IF NOT EXISTS public.conversations (
   id              TEXT          PRIMARY KEY
-                                  DEFAULT ('convo_' || encode(gen_random_uuid()::bytea, 'hex')),
+                                  DEFAULT ('convo_' || encode(uuid_send(gen_random_uuid()), 'hex')),
   participant_a   TEXT          NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
   participant_b   TEXT          NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
   created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),

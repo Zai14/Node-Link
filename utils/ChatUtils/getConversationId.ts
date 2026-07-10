@@ -12,7 +12,8 @@
 //   encode(digest(v_min || v_max, 'md5'), 'hex')
 // which is equivalent to md5(v_min || v_max).
 
-import { createHash } from "crypto";
+import { md5 } from "@noble/hashes/legacy";
+import { bytesToHex } from "@noble/hashes/utils";
 
 /**
  * Generate a deterministic conversation ID from two wallet addresses.
@@ -25,6 +26,6 @@ import { createHash } from "crypto";
 export function getConversationId(walletA: string, walletB: string): string {
   const [vMin, vMax] =
     walletA < walletB ? [walletA, walletB] : [walletB, walletA];
-  const hash = createHash("md5").update(vMin + vMax).digest("hex");
+  const hash = bytesToHex(md5(new TextEncoder().encode(vMin + vMax)));
   return `convo_${hash}`;
 }
