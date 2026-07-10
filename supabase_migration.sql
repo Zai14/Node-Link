@@ -15,6 +15,79 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";    -- trigram search on username/name
 
 
 -- ================================================================
+-- AUTH FUNCTIONS (defined early so RLS policies below can reference them)
+-- ================================================================
+
+-- Creates or returns a Supabase Auth user for a wallet address.
+-- Uses email-based auth with a deterministic email tied to the wallet.
+CREATE OR REPLACE FUNCTION public.resolve_wallet_auth_user(
+  p_wallet TEXT
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_user_id uuid;
+  v_email TEXT := p_wallet || '@wallet.nodelink.app';
+  v_password TEXT := 'wallet_' || encode(digest(p_wallet, 'sha256'), 'hex');
+BEGIN
+  -- Check if user exists
+  SELECT id INTO v_user_id FROM auth.users WHERE email = v_email;
+
+  IF v_user_id IS NULL THEN
+    -- Create user in auth.users
+    INSERT INTO auth.users (
+      instance_id, id, aud, role, email,
+      encrypted_password, email_confirmed_at,
+      confirmation_token, confirmation_sent_at,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000000',
+      gen_random_uuid(),
+      'authenticated',
+      'authenticated',
+      v_email,
+      crypt(v_password, gen_salt('bf')),
+      NOW(),
+      '',
+      NOW(),
+      jsonb_build_object('provider', 'wallet', 'wallet_address', p_wallet),
+      jsonb_build_object('wallet_address', p_wallet),
+      NOW(),
+      NOW()
+    )
+    RETURNING id INTO v_user_id;
+
+    -- Create identity in auth.identities
+    INSERT INTO auth.identities (
+      id, user_id, identity_data, provider, provider_id,
+      last_sign_in_at, created_at, updated_at
+    ) VALUES (
+      v_user_id, v_user_id,
+      jsonb_build_object('sub', v_user_id::text, 'wallet_address', p_wallet, 'email', v_email),
+      'wallet', p_wallet,
+      NOW(), NOW(), NOW()
+    );
+  END IF;
+
+  RETURN v_user_id;
+END;
+$$;
+
+-- Helper: get wallet address from the Supabase Auth JWT or session.
+-- Checks three sources in order:
+--   1. auth.jwt() -> 'wallet_address' claim
+--   2. request.jwt.claim.wallet_address GUC
+--   3. Extracts from auth.jwt() -> 'email' by removing @wallet.nodelink.app suffix
+CREATE OR REPLACE FUNCTION public.auth_wallet()
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+  SELECT COALESCE(
+    NULLIF(auth.jwt() ->> 'wallet_address', ''),
+    NULLIF(current_setting('request.jwt.claim.wallet_address', true), ''),
+    REPLACE(auth.jwt() ->> 'email', '@wallet.nodelink.app', '')
+  );
+$$;
+
+
+-- ================================================================
 -- 1. PROFILES
 --    Source: RegisterUser.ts, UpdateUserData.ts, MyProfile.tsx,
 --            UserProfile.tsx, SettingsScreen.tsx
@@ -503,77 +576,7 @@ CREATE POLICY "chat_media_delete_participant"
 
 
 -- ================================================================
--- 8. WALLET-BASED AUTHENTICATION (replaces all `USING (true)` RLS below)
---    Links wallet addresses to Supabase Auth users so RLS policies
---    can verify identity via auth.jwt() claims.
--- ================================================================
-
--- Creates or returns a Supabase Auth user for a wallet address
--- Uses email-based auth with a deterministic email tied to the wallet.
-CREATE OR REPLACE FUNCTION public.resolve_wallet_auth_user(
-  p_wallet TEXT
-) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_user_id uuid;
-  v_email TEXT := p_wallet || '@wallet.nodelink.app';
-  v_password TEXT := 'wallet_' || encode(digest(p_wallet, 'sha256'), 'hex');
-BEGIN
-  -- Check if user exists
-  SELECT id INTO v_user_id FROM auth.users WHERE email = v_email;
-
-  IF v_user_id IS NULL THEN
-    -- Create user in auth.users
-    INSERT INTO auth.users (
-      instance_id, id, aud, role, email,
-      encrypted_password, email_confirmed_at,
-      confirmation_token, confirmation_sent_at,
-      raw_app_meta_data, raw_user_meta_data,
-      created_at, updated_at
-    ) VALUES (
-      '00000000-0000-0000-0000-000000000000',
-      gen_random_uuid(),
-      'authenticated',
-      'authenticated',
-      v_email,
-      crypt(v_password, gen_salt('bf')),
-      NOW(),
-      '',
-      NOW(),
-      jsonb_build_object('provider', 'wallet', 'wallet_address', p_wallet),
-      jsonb_build_object('wallet_address', p_wallet),
-      NOW(),
-      NOW()
-    )
-    RETURNING id INTO v_user_id;
-
-    -- Create identity in auth.identities
-    INSERT INTO auth.identities (
-      id, user_id, identity_data, provider, provider_id,
-      last_sign_in_at, created_at, updated_at
-    ) VALUES (
-      v_user_id, v_user_id,
-      jsonb_build_object('sub', v_user_id::text, 'wallet_address', p_wallet, 'email', v_email),
-      'wallet', p_wallet,
-      NOW(), NOW(), NOW()
-    );
-  END IF;
-
-  RETURN v_user_id;
-END;
-$$;
-
--- Helper: get wallet from auth JWT
-CREATE OR REPLACE FUNCTION public.auth_wallet()
-RETURNS TEXT LANGUAGE sql STABLE AS $$
-  SELECT COALESCE(
-    NULLIF(auth.jwt() ->> 'wallet_address', ''),
-    NULLIF(current_setting('request.jwt.claim.wallet_address', true), ''),
-    REPLACE(auth.jwt() ->> 'email', '@wallet.nodelink.app', '')
-  );
-$$;
-
--- ================================================================
--- 9. HELPER FUNCTIONS
+-- 8. HELPER FUNCTIONS
 -- ================================================================
 
 -- Check username availability (CheckUsername.ts)
