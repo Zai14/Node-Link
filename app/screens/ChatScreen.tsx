@@ -12,6 +12,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -440,8 +441,7 @@ const Chats = () => {
       dynamicContainer: {
         ...styles.searchResultsContainer,
         height: getContainerHeight(),
-        overflow: "hidden",
-        maxHeight: searchResults.length > 5 ? 370 : undefined, // Only limit if more than 5 items
+        maxHeight: searchResults.length > 5 ? 370 : undefined,
       },
     });
 
@@ -582,7 +582,7 @@ const Chats = () => {
           <Ionicons
             name={isDarkMode ? "moon" : "sunny"}
             size={24}
-            color={isDarkMode ? "#FFF" : "#000"}
+            color={isDarkMode ? "#FFF" : "#333"}
           />
         </TouchableOpacity>
       </View>
@@ -666,7 +666,7 @@ const createStyles = (isDarkMode: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? "#1C1C1D" : "#F1F1F1",
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
     headerContainer: {
       flexDirection: "row",
@@ -691,7 +691,7 @@ const createStyles = (isDarkMode: boolean) =>
       fontSize: 25,
       fontWeight: "bold",
       fontFamily: "MontserratAlternates-Regular",
-      color: isDarkMode ? "#FFFFFF" : "#000",
+      color: isDarkMode ? "#FFFFFF" : "#333333",
     },
     themeIconContainer: {
       position: "absolute",
@@ -700,7 +700,7 @@ const createStyles = (isDarkMode: boolean) =>
     searchContainer: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: isDarkMode ? "#2C2C2E" : "#E5E5E7",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#E5E5E7",
       paddingHorizontal: 15,
       paddingVertical: 10,
       borderRadius: 20,
@@ -714,7 +714,7 @@ const createStyles = (isDarkMode: boolean) =>
       flex: 1,
       fontFamily: "SF-Pro-Text-Regular",
       marginLeft: 10,
-      color: isDarkMode ? "#fff" : "#000",
+      color: isDarkMode ? "#fff" : "#333333",
       paddingVertical: 0,
     },
     clearButton: {
@@ -723,20 +723,20 @@ const createStyles = (isDarkMode: boolean) =>
     },
     // In your createStyles function, update the searchResultsContainer
     searchResultsContainer: {
-      backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
       marginHorizontal: 20,
       marginBottom: 10,
       borderRadius: 12,
-      minHeight: 60, // Add minimum height
-      shadowColor: "#000",
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      overflow: "hidden",
-      shadowOpacity: 0.1,
-      shadowRadius: 3.84,
-      elevation: 5,
+      minHeight: 60,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
 
     searchLoadingContainer: {
@@ -746,7 +746,7 @@ const createStyles = (isDarkMode: boolean) =>
       padding: 20,
     },
     searchLoadingText: {
-      color: isDarkMode ? "#FFFFFF" : "#000000",
+      color: isDarkMode ? "#FFFFFF" : "#333333",
       fontSize: 16,
       marginLeft: 10,
       fontFamily: "SF-Pro-Text-Regular",
@@ -756,7 +756,7 @@ const createStyles = (isDarkMode: boolean) =>
       alignItems: "center",
     },
     noResultsText: {
-      color: isDarkMode ? "#FFFFFF" : "#000000",
+      color: isDarkMode ? "#FFFFFF" : "#333333",
       fontSize: 16,
       fontWeight: "600",
       marginTop: 8,
@@ -791,7 +791,7 @@ const createStyles = (isDarkMode: boolean) =>
     searchResultName: {
       fontSize: 16,
       fontWeight: "600",
-      color: isDarkMode ? "#FFFFFF" : "#000000",
+      color: isDarkMode ? "#FFFFFF" : "#333333",
       marginBottom: 2,
       fontFamily: "SF-Pro-Text-Medium",
     },
@@ -812,7 +812,7 @@ const createStyles = (isDarkMode: boolean) =>
       paddingLeft: 15,
       borderBottomWidth: StyleSheet.hairlineWidth, // Changed from 1 to StyleSheet.hairlineWidth
       borderColor: isDarkMode ? "#333" : "#ddd",
-      backgroundColor: isDarkMode ? "#121212" : "#fff",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#fff",
       height: 80, // Changed from minHeight/maxHeight to fixed height
     },
     rightActions: {
@@ -821,7 +821,7 @@ const createStyles = (isDarkMode: boolean) =>
       height: 80, // Match the chatItem height exactly
       borderBottomWidth: StyleSheet.hairlineWidth, // Add matching border
       borderColor: isDarkMode ? "#333" : "#ddd", // Add matching border color
-      backgroundColor: isDarkMode ? "#121212" : "#fff", // Add matching background
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#fff", // Add matching background
     },
 
     avatarContainer: {
@@ -844,7 +844,7 @@ const createStyles = (isDarkMode: boolean) =>
       justifyContent: "center",
       alignItems: "center",
       borderWidth: 2,
-      borderColor: isDarkMode ? "#121212" : "#fff",
+      borderColor: isDarkMode ? "#1C1C1E" : "#fff",
     },
     unreadBadgeText: {
       color: "#FFFFFF",
@@ -869,7 +869,7 @@ const createStyles = (isDarkMode: boolean) =>
       fontSize: 18,
       fontFamily: "SF-Pro-Text-Medium",
       bottom: 5,
-      color: isDarkMode ? "#fff" : "#000",
+      color: isDarkMode ? "#fff" : "#333333",
     },
     chatNameUnread: {
       fontWeight: "800",
@@ -881,7 +881,7 @@ const createStyles = (isDarkMode: boolean) =>
       bottom: 0,
     },
     chatMessageUnread: {
-      color: isDarkMode ? "#fff" : "#000",
+      color: isDarkMode ? "#fff" : "#333333",
       fontWeight: "600",
     },
     chatTimeContainer: {

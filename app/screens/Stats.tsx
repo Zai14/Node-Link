@@ -858,9 +858,11 @@ const getStyles = (isDarkMode: boolean) =>
       position: "relative",
       flexDirection: "row",
       alignItems: "center",
-      height: 40,
+      height: 44,
       paddingHorizontal: 16,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
     },
     backButton: {
       width: 100,
@@ -883,7 +885,7 @@ const getStyles = (isDarkMode: boolean) =>
       zIndex: 0,
     },
     headerTitleText: {
-      fontSize: 20,
+      fontSize: 17,
       fontFamily: "SF-Pro-Text-Medium",
       fontWeight: "600",
       color: isDarkMode ? "#fff" : "#333333",
@@ -912,9 +914,17 @@ const getStyles = (isDarkMode: boolean) =>
     },
     listContainer: {
       borderRadius: 12,
-      marginHorizontal: 20,
-      overflow: "hidden",
-      backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
+      marginHorizontal: 16,
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     statItem: {
       flexDirection: "row",
@@ -936,7 +946,7 @@ const getStyles = (isDarkMode: boolean) =>
     },
     statTitle: {
       fontSize: 17,
-      color: isDarkMode ? "#fff" : "#000",
+      color: isDarkMode ? "#fff" : "#333333",
     },
     statSubtitle: {
       fontSize: 13,
