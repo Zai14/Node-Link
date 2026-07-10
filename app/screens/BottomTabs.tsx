@@ -1,14 +1,13 @@
 import React, { useEffect, useRef } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
-  Image,
   View,
   Animated,
-  ImageSourcePropType,
   StyleSheet,
   Pressable,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import WalletScreen from "./WalletScreen";
 import ChatScreen from "./ChatScreen";
@@ -17,43 +16,91 @@ import { triggerTapHapticFeedback } from "../../utils/GlobalUtils/TapHapticFeedb
 import { useThemeToggle } from "../../utils/GlobalUtils/ThemeProvider";
 import { handleUserData } from "../../backend/Supabase/HandleUserData";
 import { handleAndPublishKeys } from "../../backend/E2E-Encryption/HandleKeys";
-import { loadChatProfiles } from "../../utils/ChatUtils/HandleRefresh";
-import { ChatItemType } from "../../utils/ChatUtils/ChatItemsTypes";
 
 const Tab = createBottomTabNavigator();
 
-interface AnimatedTabIconProps {
-  source: ImageSourcePropType;
+// ─── Icon config ────────────────────────────────────────────────────────────
+const TAB_ICONS: Record<string, { focused: string; unfocused: string }> = {
+  Wallet: { focused: "wallet", unfocused: "wallet-outline" },
+  Chats: { focused: "chatbox", unfocused: "chatbox-outline" },
+  Settings: { focused: "options", unfocused: "options-outline" },
+};
+
+// ─── Animated Tab Icon with background pill ────────────────────────────────
+const TabIcon: React.FC<{
+  routeName: string;
   focused: boolean;
   size: number;
-  tintColor: string;
-}
+  isDarkMode: boolean;
+}> = ({ routeName, focused, size, isDarkMode }) => {
+  const focusAnim = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
-const AnimatedTabIcon: React.FC<AnimatedTabIconProps> = ({
-  source,
-  focused,
-  size,
-  tintColor,
-}) => (
-  <View style={styles.iconContainer}>
-    <Image
-      source={source}
-      style={[styles.icon, { width: size, height: size, tintColor }]}
-      resizeMode="contain"
-    />
-  </View>
-);
+  useEffect(() => {
+    Animated.timing(focusAnim, {
+      toValue: focused ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [focused, focusAnim]);
 
+  const bgOpacity = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const iconScale = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.12],
+  });
+
+  const activeColor = isDarkMode ? "#fff" : "#333";
+  const inactiveColor = "gray";
+
+  const icons = TAB_ICONS[routeName];
+  if (!icons) return null;
+
+  const iconName = focused ? icons.focused : icons.unfocused;
+  const iconSize = size + 4;
+
+  return (
+    <View style={styles.iconOuter}>
+      {/* Focus background pill */}
+      <Animated.View
+        style={[
+          styles.focusPill,
+          {
+            backgroundColor: isDarkMode
+              ? "rgba(255,255,255,0.12)"
+              : "rgba(0,0,0,0.08)",
+            opacity: bgOpacity,
+            width: iconSize + 16,
+            height: iconSize + 16,
+            borderRadius: (iconSize + 16) / 2,
+          },
+        ]}
+      />
+      <Animated.View style={{ transform: [{ scale: iconScale }] }}>
+        <Ionicons
+          name={iconName as any}
+          size={iconSize}
+          color={focused ? activeColor : inactiveColor}
+        />
+      </Animated.View>
+    </View>
+  );
+};
+
+// ─── Animated Tab Bar Button ───────────────────────────────────────────────
 const AnimatedTabBarButton = (props: any) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const { onPress, children, style } = props;
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.9,
+      toValue: 0.92,
       useNativeDriver: true,
       speed: 20,
-      bounciness: 10,
+      bounciness: 8,
     }).start();
   };
 
@@ -62,7 +109,7 @@ const AnimatedTabBarButton = (props: any) => {
       toValue: 1,
       useNativeDriver: true,
       speed: 20,
-      bounciness: 10,
+      bounciness: 8,
     }).start();
   };
 
@@ -85,36 +132,39 @@ const AnimatedTabBarButton = (props: any) => {
   );
 };
 
+// ─── Tab bar style ─────────────────────────────────────────────────────────
 const getTabBarStyle = (isDarkMode: boolean) =>
   Platform.select({
     ios: {
-      height: 85,
+      height: 60,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: isDarkMode ? "#333" : "#ccc",
       elevation: 0,
       shadowOpacity: 0,
+      paddingBottom: 6,
     },
     android: {
-      height: 85,
+      height: 60,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: isDarkMode ? "#333" : "#ccc",
       elevation: 0,
       shadowOpacity: 0,
-      marginBottom: 20,
-      paddingBottom: 30,
+      paddingBottom: 6,
     },
     default: {
-      height: 85,
+      height: 60,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: isDarkMode ? "#333" : "#ccc",
       elevation: 0,
       shadowOpacity: 0,
+      paddingBottom: 6,
     },
   });
 
+// ─── Main Component ────────────────────────────────────────────────────────
 export default function BottomTabs() {
   const { currentTheme } = useThemeToggle();
   const isDarkMode = currentTheme === "dark";
@@ -139,46 +189,6 @@ export default function BottomTabs() {
     })();
   }, []);
 
-  // 3️⃣ Preload profiles for common conversations (optional warmup)
-  useEffect(() => {
-    const preloadCommonProfiles = async () => {
-      try {
-        console.log("Preloading common chat profiles...");
-
-        const sampleConversationIds: any[] = [
-          // Add any common conversation IDs you want to preload
-          // "convo_0x1234567890...",
-        ];
-
-        if (sampleConversationIds.length > 0) {
-          const chatItems: ChatItemType[] = sampleConversationIds.map((id) => ({
-            id: id,
-            name: "Loading...",
-            message: "",
-            time: "",
-            avatar: null,
-          }));
-
-          const profiles = await loadChatProfiles(chatItems);
-          console.log(
-            `Preloaded ${Object.keys(profiles).length} common profiles`
-          );
-        } else {
-          console.log("ℹNo common profiles to preload");
-        }
-      } catch (error) {
-        console.error("Failed to preload profiles:", error);
-      }
-    };
-
-    // Preload after a delay to ensure other systems are ready
-    const timer = setTimeout(() => {
-      preloadCommonProfiles();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <Tab.Navigator
       initialRouteName="Chats"
@@ -186,38 +196,18 @@ export default function BottomTabs() {
         headerShown: false,
         tabBarButton: (props) => <AnimatedTabBarButton {...props} />,
         tabBarStyle: getTabBarStyle(isDarkMode),
-        tabBarActiveTintColor: isDarkMode ? "white" : "black",
-        tabBarInactiveTintColor: "gray",
-        tabBarIcon: ({ focused, size }) => {
-          let iconSource: ImageSourcePropType;
-          if (route.name === "Wallet") {
-            iconSource = require("../../assets/images/wallet-icon-black-active.png");
-          } else if (route.name === "Chats") {
-            iconSource = require("../../assets/images/chat-icon-black-active.png");
-          } else {
-            iconSource = require("../../assets/images/settings-icon-black-active.png");
-          }
-          return (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <AnimatedTabIcon
-                source={iconSource}
-                focused={focused}
-                size={size}
-                tintColor={focused ? (isDarkMode ? "white" : "#333") : "gray"}
-              />
-            </View>
-          );
-        },
         tabBarLabelStyle: {
-          top: 13,
-          fontSize: 12,
+          fontSize: 9,
+          marginTop: 1,
         },
+        tabBarIcon: ({ focused, size }) => (
+          <TabIcon
+            routeName={route.name}
+            focused={focused}
+            size={size}
+            isDarkMode={isDarkMode}
+          />
+        ),
       })}
     >
       <Tab.Screen
@@ -246,6 +236,7 @@ export default function BottomTabs() {
           },
         }}
       />
+
       <Tab.Screen
         name="Settings"
         component={SettingsStackScreen}
@@ -264,13 +255,15 @@ export default function BottomTabs() {
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
+  iconOuter: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 5,
-    borderRadius: 10,
+    position: "relative",
   },
-  icon: {
-    marginTop: 10,
+  focusPill: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
 });
