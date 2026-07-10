@@ -708,11 +708,14 @@ const getStyles = (isDarkMode: boolean) =>
       paddingBottom: 50,
     },
     headerContainer: {
-      height: 40,
+      position: "relative",
+      height: 44,
       justifyContent: "center",
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
       width: "100%",
       zIndex: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
     },
     backButton: {
       position: "absolute",
@@ -741,7 +744,7 @@ const getStyles = (isDarkMode: boolean) =>
       zIndex: 0,
     },
     headerTitleText: {
-      fontSize: 20,
+      fontSize: 17,
       fontWeight: "600",
       fontFamily: "SF-Pro-Text-Medium",
       color: isDarkMode ? "#fff" : "#333333",
@@ -782,11 +785,20 @@ const getStyles = (isDarkMode: boolean) =>
     },
     infoBox: {
       marginTop: 20,
-      backgroundColor: isDarkMode ? "#121212" : "#FFFFFF",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
       width: "90%",
       borderRadius: 12,
       paddingHorizontal: 15,
       marginBottom: 0,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     infoRow: {
       paddingVertical: 12,
@@ -859,9 +871,12 @@ const getStyles = (isDarkMode: boolean) =>
       fontFamily: Platform.select({ ios: "Courier", android: "monospace" }),
     },
     editableText: {
-      borderBottomWidth: 1,
-      borderBottomColor: "gray",
-      paddingBottom: 2,
+      borderWidth: 1,
+      borderColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F8F9FA",
     },
     bioInput: {
       minHeight: 40,
@@ -869,7 +884,7 @@ const getStyles = (isDarkMode: boolean) =>
     },
     invalidText: {
       color: "#dc3545",
-      borderBottomColor: "#dc3545",
+      borderColor: "#dc3545",
     },
     notificationContainer: {
       width: "90%",

@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Platform, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeToggle } from "../../utils/GlobalUtils/ThemeProvider";
@@ -9,17 +9,41 @@ export default function Wallet() {
   const isDarkMode = currentTheme === "dark";
   const styles = getStyles(isDarkMode);
 
+  // ── Breathing animation ──────────────────────────────────────────────
+  const breatheAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const breathe = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breatheAnim, {
+          toValue: 1.08,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(breatheAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    breathe.start();
+    return () => breathe.stop();
+  }, [breatheAnim]);
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.centered}>
         <View style={styles.card}>
-          <View style={styles.iconContainer}>
+          <Animated.View style={[styles.iconContainer, { transform: [{ scale: breatheAnim }] }]}>
             <Ionicons
               name="pause-circle-outline"
               size={48}
               color={isDarkMode ? "#FF9500" : "#FF9500"}
             />
-          </View>
+          </Animated.View>
           <Text style={styles.title}>Access Paused</Text>
           <Text style={styles.message}>
             Wallet access and the whole NodeLink project is currently paused due

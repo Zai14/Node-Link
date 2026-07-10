@@ -501,10 +501,13 @@ const getStyles = (isDarkMode: boolean) =>
       alignItems: "center",
     },
     headerContainer: {
-      height: 40,
+      position: "relative",
+      height: 44,
       justifyContent: "center",
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
       width: "100%",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
     },
     backButton: {
       position: "absolute",
@@ -528,7 +531,7 @@ const getStyles = (isDarkMode: boolean) =>
       zIndex: 0,
     },
     headerTitleText: {
-      fontSize: 20,
+      fontSize: 17,
       fontWeight: "600",
       fontFamily: "SF-Pro-Text-Medium",
       color: isDarkMode ? "#fff" : "#333333",
@@ -552,12 +555,21 @@ const getStyles = (isDarkMode: boolean) =>
     },
     infoBox: {
       top: 10,
-      backgroundColor: isDarkMode ? "#121212" : "#FFFFFF",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
       width: "90%",
       borderRadius: 12,
       paddingHorizontal: 15,
       paddingVertical: 10,
       marginVertical: 20,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     infoRow: { paddingVertical: 10 },
     label: { fontSize: 12, color: "gray", marginBottom: 4 },
