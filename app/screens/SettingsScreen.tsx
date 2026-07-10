@@ -368,6 +368,46 @@ export default function SettingsScreen() {
             <Text style={styles.profileAddress}>
               {userData?.walletAddress ?? "Loading..."}
             </Text>
+            <View style={styles.authStatusRow}>
+              <View
+                style={[
+                  styles.authStatusDot,
+                  {
+                    backgroundColor:
+                      supabaseAuthStatus === "active"
+                        ? "#34C759"
+                        : supabaseAuthStatus === "checking"
+                        ? "#FF9500"
+                        : isDarkMode
+                        ? "#555"
+                        : "#bbb",
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.authStatusText,
+                  {
+                    color:
+                      supabaseAuthStatus === "active"
+                        ? "#34C759"
+                        : supabaseAuthStatus === "checking"
+                        ? "#FF9500"
+                        : isDarkMode
+                        ? "#888"
+                        : "#999",
+                  },
+                ]}
+              >
+                {supabaseAuthStatus === "active"
+                  ? "Synced"
+                  : supabaseAuthStatus === "checking"
+                  ? "Checking..."
+                  : supabaseAuthStatus === "error"
+                  ? "Error"
+                  : "Offline"}
+              </Text>
+            </View>
           </View>
           <ProfileRightArrow />
         </TouchableOpacity>
@@ -662,6 +702,20 @@ const getStyles = (isDarkMode: boolean) =>
       fontSize: 13,
       color: "#1E90FF",
       marginTop: 4,
+    },
+    authStatusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 6,
+    },
+    authStatusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      marginRight: 6,
+    },
+    authStatusText: {
+      fontSize: 12,
     },
     settingsItem: {
       flexDirection: "row",
