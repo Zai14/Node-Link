@@ -30,6 +30,12 @@ import {
   AuthProvider,
   useAuth,
 } from "../utils/AuthenticationUtils/AuthContext";
+import {
+  signInWithWallet,
+  hasActiveWalletSession,
+  startTokenRefresh,
+  stopTokenRefresh,
+} from "../utils/AuthenticationUtils/SupabaseAuth";
 import GlobalMessageListener from "../backend/Gun Service/Messaging/GlobalMessageListener";
 
 Notifications.setNotificationHandler({
@@ -87,7 +93,23 @@ function AppContent() {
         console.log("Wallet address found:", walletAddress ? "Yes" : "No");
 
         if (walletAddress) {
-          // Step 3: Initialize Gun network for authenticated users
+          // Step 3: Restore Supabase Auth session (blocking, required for RLS)
+          // On cold start, the JWT may have expired — re-authenticate before
+          // making any Supabase API calls (like handleUserData below).
+          const hasSession = await hasActiveWalletSession(walletAddress);
+          if (!hasSession) {
+            console.log("No active Supabase Auth session — restoring...");
+            const { error } = await signInWithWallet(walletAddress);
+            if (error) {
+              console.warn("Supabase Auth restore skipped:", error);
+            } else {
+              console.log("Supabase Auth session restored on cold start");
+            }
+          } else {
+            console.log("Supabase Auth session is active");
+          }
+
+          // Step 4: Initialize Gun network for authenticated users
           console.log("Initializing P2P network...");
 
           // Set up network status monitoring
@@ -102,10 +124,13 @@ function AppContent() {
           initializeGun();
           console.log("P2P network initialized");
 
-          // Step 4: Load user data
+          // Step 5: Load user data
           console.log("Loading user data...");
           await handleUserData();
           console.log("User data loaded");
+
+          // Step 6: Start proactive token refresh timer
+          startTokenRefresh();
 
           setIsLoggedIn(true);
         } else {
@@ -113,7 +138,7 @@ function AppContent() {
           setIsLoggedIn(false);
         }
 
-        // Step 5: Add minimum loading time for better UX
+        // Step 7: Add minimum loading time for better UX
         const minLoadingTime = 2000; // 2 seconds minimum
         const startTime = Date.now();
         const elapsedTime = Date.now() - startTime;
@@ -144,6 +169,7 @@ function AppContent() {
       if (networkUnsubscribe) {
         networkUnsubscribe();
       }
+      stopTokenRefresh();
       destroyGun();
     };
   }, [fontsLoaded, setIsLoggedIn]);

@@ -24,6 +24,10 @@ import {
   loadUserDataFromStorage,
 } from "../../backend/Local database/AsyncStorage/UserDataStorage/UtilityIndex";
 import { refreshUserDataFromSupabase } from "../../backend/Supabase/RefreshUserData";
+import {
+  hasActiveWalletSession,
+  signInWithWallet,
+} from "../../utils/AuthenticationUtils/SupabaseAuth";
 import ArrowSVG from "../../assets/images/arrow-icon.svg";
 import ProfileArrowSvg from "../../assets/images/profile-arrow-icon.svg";
 import { useLogout } from "../../utils/AuthenticationUtils/Logout";
@@ -58,17 +62,26 @@ export default function SettingsScreen() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(true);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [supabaseAuthStatus, setSupabaseAuthStatus] = useState<
+    "checking" | "active" | "inactive" | "error"
+  >("checking");
 
-  // Load wallet address first
+  // Load wallet address and check Supabase Auth status
   useEffect(() => {
     const loadWalletAddress = async () => {
       try {
         const address = await AsyncStorage.getItem("walletAddress");
         if (address) {
           setWalletAddress(address);
+          // Check Supabase Auth session status
+          const active = await hasActiveWalletSession(address);
+          setSupabaseAuthStatus(active ? "active" : "inactive");
+        } else {
+          setSupabaseAuthStatus("inactive");
         }
       } catch (error) {
         console.error("❌ Error loading wallet address:", error);
+        setSupabaseAuthStatus("error");
       }
     };
     loadWalletAddress();
@@ -454,6 +467,74 @@ export default function SettingsScreen() {
             <RightArrow />
           </View>
         </TouchableOpacity>
+
+        {/* Supabase Auth Status */}
+        <View style={styles.settingsItem}>
+          <View style={styles.itemLeft}>
+            <Ionicons
+              name={
+                supabaseAuthStatus === "active"
+                  ? "checkmark-circle"
+                  : supabaseAuthStatus === "checking"
+                  ? "sync-circle-outline"
+                  : "close-circle"
+              }
+              size={24}
+              color={
+                supabaseAuthStatus === "active"
+                  ? "#34C759"
+                  : supabaseAuthStatus === "checking"
+                  ? "#FF9500"
+                  : "#FF3B30"
+              }
+              style={{ marginRight: 12 }}
+            />
+            <View>
+              <Text style={styles.itemTitle}>Supabase Auth</Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color:
+                    supabaseAuthStatus === "active"
+                      ? "#34C759"
+                      : supabaseAuthStatus === "checking"
+                      ? "#FF9500"
+                      : isDarkMode
+                      ? "#888"
+                      : "#999",
+                  marginTop: 2,
+                }}
+              >
+                {supabaseAuthStatus === "active"
+                  ? "Active"
+                  : supabaseAuthStatus === "checking"
+                  ? "Checking..."
+                  : supabaseAuthStatus === "error"
+                  ? "Error"
+                  : "Not connected"}
+              </Text>
+            </View>
+          </View>
+          {supabaseAuthStatus === "inactive" && walletAddress && (
+            <TouchableOpacity
+              onPress={async () => {
+                setSupabaseAuthStatus("checking");
+                const { error } = await signInWithWallet(walletAddress);
+                setSupabaseAuthStatus(error ? "inactive" : "active");
+              }}
+              style={{
+                backgroundColor: "#007AFF",
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+                Reconnect
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Logout / Delete */}
         <View style={styles.accountActionsContainer}>

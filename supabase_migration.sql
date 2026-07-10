@@ -64,16 +64,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username_lower_unique
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "profiles_select_public"
-  ON public.profiles FOR SELECT USING (true);
+  ON public.profiles FOR SELECT
+  USING (true);   -- profiles are public for search/discovery
 
 CREATE POLICY "profiles_insert_own"
-  ON public.profiles FOR INSERT WITH CHECK (true);
+  ON public.profiles FOR INSERT
+  WITH CHECK (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "profiles_update_own"
-  ON public.profiles FOR UPDATE USING (true);
+  ON public.profiles FOR UPDATE
+  USING (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "profiles_delete_own"
-  ON public.profiles FOR DELETE USING (true);
+  ON public.profiles FOR DELETE
+  USING (public.auth_wallet() = wallet_address);
 
 
 -- ================================================================
@@ -109,16 +113,31 @@ ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 -- Only participants can see a conversation
 CREATE POLICY "conversations_select_participants"
   ON public.conversations FOR SELECT
-  USING (true);   -- app-level filter by wallet; tighten with Supabase Auth JWT
+  USING (
+    public.auth_wallet() = participant_a
+    OR public.auth_wallet() = participant_b
+  );
 
 CREATE POLICY "conversations_insert_participants"
-  ON public.conversations FOR INSERT WITH CHECK (true);
+  ON public.conversations FOR INSERT
+  WITH CHECK (
+    public.auth_wallet() = participant_a
+    OR public.auth_wallet() = participant_b
+  );
 
 CREATE POLICY "conversations_update_participants"
-  ON public.conversations FOR UPDATE USING (true);
+  ON public.conversations FOR UPDATE
+  USING (
+    public.auth_wallet() = participant_a
+    OR public.auth_wallet() = participant_b
+  );
 
 CREATE POLICY "conversations_delete_participants"
-  ON public.conversations FOR DELETE USING (true);
+  ON public.conversations FOR DELETE
+  USING (
+    public.auth_wallet() = participant_a
+    OR public.auth_wallet() = participant_b
+  );
 
 
 -- ================================================================
@@ -237,16 +256,29 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 -- so current_user is always 'anon' and cannot be used for participant checks.
 
 CREATE POLICY "messages_select_participants"
-  ON public.messages FOR SELECT USING (true);
+  ON public.messages FOR SELECT
+  USING (
+    public.auth_wallet() = sender
+    OR public.auth_wallet() = receiver
+  );
 
 CREATE POLICY "messages_insert_sender"
-  ON public.messages FOR INSERT WITH CHECK (true);
+  ON public.messages FOR INSERT
+  WITH CHECK (public.auth_wallet() = sender);
 
 CREATE POLICY "messages_update_sender"
-  ON public.messages FOR UPDATE USING (true);
+  ON public.messages FOR UPDATE
+  USING (
+    public.auth_wallet() = sender
+    OR public.auth_wallet() = receiver
+  );
 
 CREATE POLICY "messages_delete_sender"
-  ON public.messages FOR DELETE USING (true);
+  ON public.messages FOR DELETE
+  USING (
+    public.auth_wallet() = sender
+    OR public.auth_wallet() = receiver
+  );
 
 
 -- ================================================================
@@ -272,17 +304,19 @@ CREATE TRIGGER trg_pinned_chats_updated_at
 CREATE INDEX IF NOT EXISTS idx_pinned_chats_wallet ON public.pinned_chats (wallet_address);
 
 -- RLS
--- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 ALTER TABLE public.pinned_chats ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "pinned_chats_select_own"
-  ON public.pinned_chats FOR SELECT USING (true);
+  ON public.pinned_chats FOR SELECT
+  USING (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "pinned_chats_insert_own"
-  ON public.pinned_chats FOR INSERT WITH CHECK (true);
+  ON public.pinned_chats FOR INSERT
+  WITH CHECK (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "pinned_chats_delete_own"
-  ON public.pinned_chats FOR DELETE USING (true);
+  ON public.pinned_chats FOR DELETE
+  USING (public.auth_wallet() = wallet_address);
 
 
 -- ================================================================
@@ -330,17 +364,19 @@ CREATE TRIGGER trg_profile_create_notifications
   FOR EACH ROW EXECUTE FUNCTION public.create_default_notification_settings();
 
 -- RLS
--- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 ALTER TABLE public.notification_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "notification_settings_select_own"
-  ON public.notification_settings FOR SELECT USING (true);
+  ON public.notification_settings FOR SELECT
+  USING (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "notification_settings_insert_own"
-  ON public.notification_settings FOR INSERT WITH CHECK (true);
+  ON public.notification_settings FOR INSERT
+  WITH CHECK (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "notification_settings_update_own"
-  ON public.notification_settings FOR UPDATE USING (true);
+  ON public.notification_settings FOR UPDATE
+  USING (public.auth_wallet() = wallet_address);
 
 
 -- ================================================================
@@ -370,16 +406,20 @@ ALTER TABLE public.muted_conversations ENABLE ROW LEVEL SECURITY;
 -- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 
 CREATE POLICY "muted_conversations_select_own"
-  ON public.muted_conversations FOR SELECT USING (true);
+  ON public.muted_conversations FOR SELECT
+  USING (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "muted_conversations_insert_own"
-  ON public.muted_conversations FOR INSERT WITH CHECK (true);
+  ON public.muted_conversations FOR INSERT
+  WITH CHECK (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "muted_conversations_update_own"
-  ON public.muted_conversations FOR UPDATE USING (true);
+  ON public.muted_conversations FOR UPDATE
+  USING (public.auth_wallet() = wallet_address);
 
 CREATE POLICY "muted_conversations_delete_own"
-  ON public.muted_conversations FOR DELETE USING (true);
+  ON public.muted_conversations FOR DELETE
+  USING (public.auth_wallet() = wallet_address);
 
 
 -- ================================================================
@@ -397,33 +437,149 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('chat-media', 'chat-media', false)
 ON CONFLICT (id) DO NOTHING;
 
--- Storage policies — avatars
+-- Storage policies — avatars (public read, owner write)
 CREATE POLICY "avatars_select_public"
-  ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'avatars');
 
-CREATE POLICY "avatars_insert"
-  ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
+CREATE POLICY "avatars_insert_own"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'avatars'
+    AND auth.role() = 'authenticated'
+  );
 
-CREATE POLICY "avatars_update"
-  ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');
+CREATE POLICY "avatars_update_own"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'avatars'
+    AND auth.role() = 'authenticated'
+  );
 
-CREATE POLICY "avatars_delete"
-  ON storage.objects FOR DELETE USING (bucket_id = 'avatars');
+CREATE POLICY "avatars_delete_own"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'avatars'
+    AND auth.role() = 'authenticated'
+  );
 
--- Storage policies — chat-media
--- TODO: Replace with participant-based RLS when Supabase Auth is integrated.
-CREATE POLICY "chat_media_select"
-  ON storage.objects FOR SELECT USING (bucket_id = 'chat-media');
+-- Storage policies — chat-media (participant-only access)
+-- Files are named: {conversation_id}/{filename}
+-- Access requires being a participant in the conversation extracted from the path.
+CREATE POLICY "chat_media_select_participant"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'chat-media'
+    AND (
+      -- Extract conversation_id from file path (first path segment)
+      EXISTS (
+        SELECT 1 FROM public.conversations c
+        WHERE c.id = SPLIT_PART(name, '/', 1)
+          AND (public.auth_wallet() = c.participant_a OR public.auth_wallet() = c.participant_b)
+      )
+    )
+  );
 
-CREATE POLICY "chat_media_insert"
-  ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'chat-media');
+CREATE POLICY "chat_media_insert_sender"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'chat-media'
+    AND auth.role() = 'authenticated'
+    AND (
+      EXISTS (
+        SELECT 1 FROM public.conversations c
+        WHERE c.id = SPLIT_PART(name, '/', 1)
+          AND (public.auth_wallet() = c.participant_a OR public.auth_wallet() = c.participant_b)
+      )
+    )
+  );
 
-CREATE POLICY "chat_media_delete"
-  ON storage.objects FOR DELETE USING (bucket_id = 'chat-media');
+CREATE POLICY "chat_media_delete_participant"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'chat-media'
+    AND (
+      EXISTS (
+        SELECT 1 FROM public.conversations c
+        WHERE c.id = SPLIT_PART(name, '/', 1)
+          AND (public.auth_wallet() = c.participant_a OR public.auth_wallet() = c.participant_b)
+      )
+    )
+  );
 
 
 -- ================================================================
--- 8. HELPER FUNCTIONS
+-- 8. WALLET-BASED AUTHENTICATION (replaces all `USING (true)` RLS below)
+--    Links wallet addresses to Supabase Auth users so RLS policies
+--    can verify identity via auth.jwt() claims.
+-- ================================================================
+
+-- Creates or returns a Supabase Auth user for a wallet address
+-- Uses email-based auth with a deterministic email tied to the wallet.
+CREATE OR REPLACE FUNCTION public.resolve_wallet_auth_user(
+  p_wallet TEXT
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_user_id uuid;
+  v_email TEXT := p_wallet || '@wallet.nodelink.app';
+  v_password TEXT := 'wallet_' || encode(digest(p_wallet, 'sha256'), 'hex');
+BEGIN
+  -- Check if user exists
+  SELECT id INTO v_user_id FROM auth.users WHERE email = v_email;
+
+  IF v_user_id IS NULL THEN
+    -- Create user in auth.users
+    INSERT INTO auth.users (
+      instance_id, id, aud, role, email,
+      encrypted_password, email_confirmed_at,
+      confirmation_token, confirmation_sent_at,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000000',
+      gen_random_uuid(),
+      'authenticated',
+      'authenticated',
+      v_email,
+      crypt(v_password, gen_salt('bf')),
+      NOW(),
+      '',
+      NOW(),
+      jsonb_build_object('provider', 'wallet', 'wallet_address', p_wallet),
+      jsonb_build_object('wallet_address', p_wallet),
+      NOW(),
+      NOW()
+    )
+    RETURNING id INTO v_user_id;
+
+    -- Create identity in auth.identities
+    INSERT INTO auth.identities (
+      id, user_id, identity_data, provider, provider_id,
+      last_sign_in_at, created_at, updated_at
+    ) VALUES (
+      v_user_id, v_user_id,
+      jsonb_build_object('sub', v_user_id::text, 'wallet_address', p_wallet, 'email', v_email),
+      'wallet', p_wallet,
+      NOW(), NOW(), NOW()
+    );
+  END IF;
+
+  RETURN v_user_id;
+END;
+$$;
+
+-- Helper: get wallet from auth JWT
+CREATE OR REPLACE FUNCTION public.auth_wallet()
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+  SELECT COALESCE(
+    NULLIF(auth.jwt() ->> 'wallet_address', ''),
+    NULLIF(current_setting('request.jwt.claim.wallet_address', true), ''),
+    REPLACE(auth.jwt() ->> 'email', '@wallet.nodelink.app', '')
+  );
+$$;
+
+-- ================================================================
+-- 9. HELPER FUNCTIONS
 -- ================================================================
 
 -- Check username availability (CheckUsername.ts)

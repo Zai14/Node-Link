@@ -2,6 +2,7 @@ import "react-native-get-random-values";
 import { Alert, Linking, AppState } from "react-native";
 import { SignClient } from "@walletconnect/sign-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { signInWithWallet } from "./SupabaseAuth";
 
 type SignClientType = InstanceType<typeof SignClient>;
 
@@ -129,6 +130,13 @@ export const connectWallet = async (
         await AsyncStorage.setItem("walletAddress", walletAddress);
         console.log("Wallet address stored in AsyncStorage");
         setWalletAddress(walletAddress);
+
+        // Authenticate with Supabase Auth for RLS
+        const { error: authError } = await signInWithWallet(walletAddress);
+        if (authError) {
+          console.warn("⚠️ Supabase Auth warning:", authError);
+          // Continue — app works without Supabase Auth, just with open RLS
+        }
       }
 
       if (!navigationHandled) {

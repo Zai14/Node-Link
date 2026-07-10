@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { clearAllMessagesFromDB } from "../../backend/Local database/SQLite/ClearAllMessages";
 import { useAuth } from "./AuthContext";
+import { signOutWallet } from "./SupabaseAuth";
 
 const CHAT_LIST_STORAGE_KEY = "chats";
 
@@ -122,7 +123,10 @@ export function useLogout() {
                 );
               }
 
-              // Step 7: Update authentication state
+              // Step 7: Sign out of Supabase Auth
+              await signOutWallet();
+
+              // Step 8: Update authentication state
               setIsLoggedIn(false);
               console.log("Auth context updated, user logged out");
 
