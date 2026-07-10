@@ -20,6 +20,9 @@ import { handlePrivatePress } from "../../utils/Security/HandlePrivateKeyPress";
 import { handleChangeKey } from "../../utils/Security/HandleChangeKey";
 import { handleValidateKeys } from "../../utils/Security/HandleValidateKeys";
 import { useThemeToggle } from "../../utils/GlobalUtils/ThemeProvider";
+import {
+  getSessionStatus,
+} from "../../utils/AuthenticationUtils/SupabaseAuth";
 
 interface SharedItem {
   name: string;
@@ -49,6 +52,10 @@ const SecurityScreen: React.FC = () => {
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>(
     {}
   );
+  const [sessionActive, setSessionActive] = useState<boolean | null>(null);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
+  const [sessionRefreshCount, setSessionRefreshCount] = useState(0);
+  const [sessionLoading, setSessionLoading] = useState(true);
 
   // Extracted to variable to allow refresh calls inside useFocusEffect
   const loadSharedSecrets = useCallback(async () => {
@@ -113,6 +120,16 @@ const SecurityScreen: React.FC = () => {
           setLoading
         );
         await loadSharedSecrets();
+
+        // Fetch Supabase Auth session status
+        const status = await getSessionStatus();
+        if (isActive) {
+          setSessionActive(status.active);
+          setSessionExpiresAt(status.expiresAt);
+          setSessionRefreshCount(status.refreshCount);
+          setSessionLoading(false);
+        }
+
         // Don't set state if unmounted
         if (isActive) setLoading(false);
       };
@@ -123,9 +140,23 @@ const SecurityScreen: React.FC = () => {
         isActive = false;
         setKeysValid(false);
         setChangeSuccess(false);
+        setSessionActive(null);
+        setSessionLoading(true);
       };
     }, [loadSharedSecrets])
   );
+
+  const formatExpiry = (expiresAt: number): string => {
+    const msRemaining = expiresAt * 1000 - Date.now();
+    if (msRemaining <= 0) return "Expired";
+    const mins = Math.floor(msRemaining / 60000);
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    if (hours > 0) {
+      return `${hours}h ${remainingMins}m remaining`;
+    }
+    return `${mins}m remaining`;
+  };
 
   const maskString = (str: string | null): string =>
     str
@@ -263,6 +294,79 @@ const SecurityScreen: React.FC = () => {
                   {keysValid ? "Valid Keys" : "Validate Keys"}
                 </Text>
               </Pressable>
+            </View>
+
+            {/* Supabase Auth Session Status */}
+            <View style={styles.sessionSection}>
+              <Text style={styles.label}>Supabase Auth Session</Text>
+              <View style={styles.sessionCard}>
+                {sessionLoading ? (
+                  <ActivityIndicator size="small" color={isDarkMode ? "#aaa" : "#888"} />
+                ) : (
+                  <>
+                    {/* Status row */}
+                    <View style={styles.sessionRow}>
+                      <View style={styles.sessionStatusLeft}>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            {
+                              backgroundColor:
+                                sessionActive === null
+                                  ? "#888"
+                                  : sessionActive
+                                  ? "#34C759"
+                                  : "#FF3B30",
+                            },
+                          ]}
+                        />
+                        <Text style={styles.sessionLabel}>Status</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.sessionValue,
+                          {
+                            color:
+                              sessionActive === null
+                                ? "#888"
+                                : sessionActive
+                                ? "#34C759"
+                                : "#FF3B30",
+                          },
+                        ]}
+                      >
+                        {sessionActive === null
+                          ? "Unknown"
+                          : sessionActive
+                          ? "Active"
+                          : "Not connected"}
+                      </Text>
+                    </View>
+
+                    {/* Token expiry row */}
+                    <View style={styles.sessionRow}>
+                      <Text style={styles.sessionLabel}>Token Expiry</Text>
+                      <Text style={styles.sessionValue}>
+                        {sessionActive && sessionExpiresAt
+                          ? formatExpiry(sessionExpiresAt)
+                          : "—"}
+                      </Text>
+                    </View>
+
+                    {/* Refresh count row */}
+                    <View style={[styles.sessionRow, { marginBottom: 0 }]}>
+                      <Text style={styles.sessionLabel}>Refreshes</Text>
+                      <Text style={styles.sessionValue}>
+                        {sessionRefreshCount > 0
+                          ? `${sessionRefreshCount} time${
+                              sessionRefreshCount !== 1 ? "s" : ""
+                            }`
+                          : "None yet"}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
             </View>
 
             {/* Shared Secrets - Non-scrollable Container */}
@@ -483,5 +587,40 @@ const getStyles = (isDarkMode: boolean) =>
       height: 1,
       backgroundColor: isDarkMode ? "#444" : "#e0e0e0",
       marginVertical: 4,
+    },
+
+    // Supabase session status styles
+    sessionSection: {
+      marginBottom: 20,
+    },
+    sessionCard: {
+      backgroundColor: isDarkMode ? "#222" : "#fff",
+      borderRadius: 15,
+      padding: 16,
+    },
+    sessionRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14,
+    },
+    sessionStatusLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    sessionLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: isDarkMode ? "#ddd" : "#333",
+    },
+    sessionValue: {
+      fontSize: 14,
+      color: isDarkMode ? "#aaa" : "#666",
+    },
+    statusDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      marginRight: 8,
     },
   });

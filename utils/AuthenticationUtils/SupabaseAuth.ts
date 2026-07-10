@@ -23,6 +23,7 @@ const WALLET_EMAIL_SUFFIX = "@wallet.nodelink.app";
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
+let refreshCount = 0;
 
 /** How many ms before expiry to attempt a proactive refresh. */
 const REFRESH_LEAD_TIME_MS = 5 * 60 * 1000; // 5 minutes
@@ -59,7 +60,10 @@ export function startTokenRefresh(): void {
         if (error) {
           console.warn("Proactive token refresh failed:", error.message);
         } else {
-          console.log("Supabase Auth token refreshed proactively");
+          refreshCount++;
+          console.log(
+            `Supabase Auth token refreshed proactively (${refreshCount})`
+          );
         }
       }
     } catch (err: any) {
@@ -87,6 +91,32 @@ export function startTokenRefresh(): void {
 /**
  * Stops the proactive refresh timer.
  */
+/**
+ * Returns the current session status info.
+ */
+export async function getSessionStatus(): Promise<{
+  active: boolean;
+  expiresAt: number | null;
+  refreshCount: number;
+  walletLinked: string | null;
+}> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const session = data.session;
+    if (!session) {
+      return { active: false, expiresAt: null, refreshCount, walletLinked: null };
+    }
+    return {
+      active: true,
+      expiresAt: session.expires_at ?? null,
+      refreshCount,
+      walletLinked: session.user?.user_metadata?.wallet_address ?? null,
+    };
+  } catch {
+    return { active: false, expiresAt: null, refreshCount, walletLinked: null };
+  }
+}
+
 export function stopTokenRefresh(): void {
   if (refreshTimer) {
     clearInterval(refreshTimer);
