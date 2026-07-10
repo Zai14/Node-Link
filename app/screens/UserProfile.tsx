@@ -27,6 +27,7 @@ import { handleCopyAddress } from "../../utils/MyProfileUtils/CopyAddress";
 import { handleCopyUsername } from "../../utils/MyProfileUtils/CopyUsername";
 import { RootStackParamList } from "../App";
 import { useChat } from "../../utils/ChatUtils/ChatContext";
+import { useConversationId } from "../../utils/ChatUtils/ConversationIdContext";
 import { handleConnect } from "../../utils/ProfileUtils/HandleConnect";
 import { generateSharedSecurityCode } from "../../backend/E2E-Encryption/SecurityCodeGen";
 import { copyToClipboard } from "../../utils/GlobalUtils/CopyToClipboard";
@@ -45,6 +46,7 @@ export default function UserProfile() {
   const { walletAddress } = route.params as { walletAddress: string };
 
   const { addOrUpdateChat, chatList } = useChat();
+  const { setCanonicalId } = useConversationId();
   const { currentTheme } = useThemeToggle();
   const isDarkMode = currentTheme === "dark";
 
@@ -62,6 +64,10 @@ export default function UserProfile() {
 
   const styles = getStyles(isDarkMode);
   const [myPublicKey, setMyPublicKey] = useState<string | null>(null);
+  const [myWallet, setMyWallet] = useState<string | null>(null);
+  const [canonicalConversationId, setCanonicalConversationId] = useState<
+    string | undefined
+  >(undefined);
   const [copied, setCopied] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -72,6 +78,7 @@ export default function UserProfile() {
     const fetchMyKey = async () => {
       const key = await AsyncStorage.getItem("walletAddress");
       setMyPublicKey(key);
+      setMyWallet(key);
     };
     fetchMyKey();
   }, []);
@@ -158,12 +165,30 @@ export default function UserProfile() {
       console.error("Cannot connect: User data is not available.");
       return;
     }
+    if (!myWallet) {
+      console.error("Cannot connect: Own wallet address not found.");
+      return;
+    }
+    if (myWallet === userData.walletAddress) {
+      console.warn("Cannot connect to self.");
+      return;
+    }
     setIsConnecting(true);
     console.log("Initiating connection with", userData.walletAddress);
-    const success = await handleConnect(userData.walletAddress);
+
+    // Call the enhanced handleConnect which also registers the conversation in Supabase
+    const result = await handleConnect(myWallet, userData.walletAddress);
     setIsConnecting(false);
-    if (success) {
+
+    if (result.success) {
       setIsConnected(true);
+      // Store the canonical conversation ID in the shared context cache
+      if (result.conversationId && userData?.walletAddress) {
+        setCanonicalId(userData.walletAddress, result.conversationId);
+        setCanonicalConversationId(result.conversationId);
+        console.log("Canonical conversation ID:", result.conversationId);
+      }
+
       const updatedUserData = { ...userData };
       try {
         await storeUserDataInStorage(updatedUserData);
@@ -180,7 +205,8 @@ export default function UserProfile() {
       userData,
       chatList,
       addOrUpdateChat,
-      navigation
+      navigation,
+      canonicalConversationId  // pass the canonical ID from Supabase RPC
     );
 
   if (isProfileLoading) {

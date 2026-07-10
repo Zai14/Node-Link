@@ -30,6 +30,7 @@ export const handleSendMessage = async (
     newMessage,
     attachment,
     flatListRef,
+    conversationId,  // canonical ID from RPC (or fallback to nav param)
     receiverAddress,
   } = dependencies;
 
@@ -50,7 +51,6 @@ export const handleSendMessage = async (
   const createdAt = Date.now();
   const id = createdAt.toString();
   const timestamp = new Date(createdAt).toISOString();
-  const conversationId = `convo_${receiverAddress}`;
 
   const ivHex = bytesToHex(randomBytes(12));
 

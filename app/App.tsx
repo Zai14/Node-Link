@@ -18,7 +18,8 @@ import * as Notifications from "expo-notifications";
 import { handleUserData } from "../backend/Supabase/HandleUserData";
 import UserProfile from "./screens/UserProfile";
 import { ChatProvider } from "../utils/ChatUtils/ChatContext";
-import { initializeDatabase } from "../backend/Local database/SQLite/InitialiseDatabase";
+import { ConversationIdProvider } from "../utils/ChatUtils/ConversationIdContext";
+import { ensureDatabaseInitialized } from "../backend/Local database/SQLite/InitialiseDatabase";
 import LoadingScreen from "./screens/LoadingScreen";
 import {
   initialize as initializeGun,
@@ -77,7 +78,7 @@ function AppContent() {
 
         // Step 1: Initialize database
         console.log("Initializing local database...");
-        await initializeDatabase();
+        await ensureDatabaseInitialized();
         console.log("Database initialized");
 
         // Step 2: Check authentication state
@@ -184,9 +185,11 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <ChatProvider>
-          <AppContent />
-        </ChatProvider>
+        <ConversationIdProvider>
+          <ChatProvider>
+            <AppContent />
+          </ChatProvider>
+        </ConversationIdProvider>
       </ThemeProvider>
     </AuthProvider>
   );

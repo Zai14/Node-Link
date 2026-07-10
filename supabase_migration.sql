@@ -55,6 +55,11 @@ CREATE INDEX IF NOT EXISTS idx_profiles_username_lower  ON public.profiles (LOWE
 CREATE INDEX IF NOT EXISTS idx_profiles_name_trgm       ON public.profiles USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_profiles_username_trgm   ON public.profiles USING gin (username gin_trgm_ops);
 
+-- Case-insensitive unique index to prevent usernames differing only by case
+-- e.g. "JohnDoe" and "johndoe" should not both be allowed
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username_lower_unique
+  ON public.profiles (LOWER(username));
+
 -- RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -78,7 +83,7 @@ CREATE POLICY "profiles_delete_own"
 -- ================================================================
 CREATE TABLE IF NOT EXISTS public.conversations (
   id              TEXT          PRIMARY KEY
-                                  DEFAULT ('convo_' || gen_random_uuid()::text),
+                                  DEFAULT ('convo_' || encode(gen_random_uuid()::bytea, 'hex')),
   participant_a   TEXT          NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
   participant_b   TEXT          NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
   created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -120,32 +125,65 @@ CREATE POLICY "conversations_delete_participants"
 -- 3. MESSAGES
 --    Source: ChatDetailScreen.tsx — text, imageUrl, videoUrl,
 --            replyToId, sender, createdAt, isRead, isDeleted
+--           HandleSendMessage.ts — encryptedContent, iv,
+--            signature, messageHash, encryptionVersion
+--    NOTE: Messages are primarily transported via GunDB and
+--          stored locally in SQLite. This Supabase table is an
+--          optional cloud backup/sync layer.
 -- ================================================================
 CREATE TABLE IF NOT EXISTS public.messages (
   id               TEXT          PRIMARY KEY DEFAULT gen_random_uuid()::text,
   conversation_id  TEXT          NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   sender           TEXT          NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
+  receiver         TEXT          NOT NULL REFERENCES public.profiles(wallet_address) ON DELETE CASCADE,
 
-  -- Content (at least one must be non-null — enforced by CHECK)
+  -- Plaintext content (at least one must be non-null — enforced by CHECK)
   text             TEXT,
   image_url        TEXT,
   video_url        TEXT,
+  audio_url        TEXT,
+
+  -- Attachment metadata
+  file_name        TEXT,
+  file_size        TEXT,
+
+  -- E2E encryption fields
+  encrypted        BOOLEAN       NOT NULL DEFAULT FALSE,
+  encrypted_content TEXT,                       -- ciphertext from Encrypt.ts
+  iv               TEXT,                        -- initialization vector (hex, 12 bytes)
+  encryption_version TEXT       NOT NULL DEFAULT 'AES-256-GCM',
+  decrypted        BOOLEAN       NOT NULL DEFAULT FALSE,
+
+  -- Message delivery status (mirrors Message.status from app)
+  status           TEXT          NOT NULL DEFAULT 'sending'
+                                  CHECK (status IN ('sending', 'sent', 'delivered', 'read', 'failed', 'received')),
 
   -- Reply / quote feature (ChatDetailScreen swipe-to-quote)
   reply_to_id      TEXT          REFERENCES public.messages(id) ON DELETE SET NULL,
+
+  -- Signature / verification fields (SignMessages.ts)
+  signature        TEXT,
+  signature_nonce  TEXT,
+  signature_timestamp BIGINT,
+  message_hash     TEXT,
+  signature_verified BOOLEAN     NOT NULL DEFAULT FALSE,
 
   -- Status flags
   is_read          BOOLEAN       NOT NULL DEFAULT FALSE,
   is_deleted       BOOLEAN       NOT NULL DEFAULT FALSE,   -- soft delete (DeleteChat.ts)
 
+  -- Timestamps
   created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
 
+  -- At least one content field must be present
   CONSTRAINT messages_has_content
     CHECK (
-      text      IS NOT NULL OR
-      image_url IS NOT NULL OR
-      video_url IS NOT NULL
+      text            IS NOT NULL OR
+      image_url       IS NOT NULL OR
+      video_url       IS NOT NULL OR
+      audio_url       IS NOT NULL OR
+      encrypted_content IS NOT NULL
     )
 );
 
@@ -165,6 +203,7 @@ BEGIN
                         NEW.text,
                         CASE WHEN NEW.image_url IS NOT NULL THEN '📷 Image'  ELSE NULL END,
                         CASE WHEN NEW.video_url IS NOT NULL THEN '🎥 Video'  ELSE NULL END,
+                        CASE WHEN NEW.audio_url IS NOT NULL THEN '🎵 Audio'  ELSE NULL END,
                         'Attachment'
                       )
   WHERE id = NEW.conversation_id;
@@ -178,22 +217,31 @@ CREATE TRIGGER trg_messages_update_conversation
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages (conversation_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_sender          ON public.messages (sender);
+DROP INDEX IF EXISTS idx_messages_sender;
+CREATE INDEX IF NOT EXISTS idx_messages_sender_created_at ON public.messages (sender, created_at DESC);
+
+DROP INDEX IF EXISTS idx_messages_receiver;
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_created_at ON public.messages (receiver, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_reply_to        ON public.messages (reply_to_id) WHERE reply_to_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_messages_unread          ON public.messages (conversation_id, is_read) WHERE is_read = FALSE;
 CREATE INDEX IF NOT EXISTS idx_messages_not_deleted     ON public.messages (conversation_id) WHERE is_deleted = FALSE;
+DROP INDEX IF EXISTS idx_messages_status;
+CREATE INDEX IF NOT EXISTS idx_messages_status_created_at ON public.messages (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_status ON public.messages (receiver, status);
 
 -- RLS
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
--- Only conversation participants can read messages
+-- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
+-- The app currently uses the anon key and manages auth via wallet signatures,
+-- so current_user is always 'anon' and cannot be used for participant checks.
+
 CREATE POLICY "messages_select_participants"
   ON public.messages FOR SELECT USING (true);
 
 CREATE POLICY "messages_insert_sender"
   ON public.messages FOR INSERT WITH CHECK (true);
 
--- Only sender can update (edit / mark deleted)
 CREATE POLICY "messages_update_sender"
   ON public.messages FOR UPDATE USING (true);
 
@@ -211,14 +259,20 @@ CREATE TABLE IF NOT EXISTS public.pinned_chats (
   wallet_address  TEXT          NOT NULL REFERENCES public.profiles(wallet_address)  ON DELETE CASCADE,
   conversation_id TEXT          NOT NULL REFERENCES public.conversations(id)         ON DELETE CASCADE,
   pinned_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
 
   CONSTRAINT pinned_chats_unique UNIQUE (wallet_address, conversation_id)
 );
+
+CREATE TRIGGER trg_pinned_chats_updated_at
+  BEFORE UPDATE ON public.pinned_chats
+  FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_pinned_chats_wallet ON public.pinned_chats (wallet_address);
 
 -- RLS
+-- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 ALTER TABLE public.pinned_chats ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "pinned_chats_select_own"
@@ -276,6 +330,7 @@ CREATE TRIGGER trg_profile_create_notifications
   FOR EACH ROW EXECUTE FUNCTION public.create_default_notification_settings();
 
 -- RLS
+-- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 ALTER TABLE public.notification_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "notification_settings_select_own"
@@ -299,13 +354,20 @@ CREATE TABLE IF NOT EXISTS public.muted_conversations (
   conversation_id TEXT          NOT NULL REFERENCES public.conversations(id)         ON DELETE CASCADE,
   muted_until     TIMESTAMPTZ,  -- NULL = muted forever; timestamp = muted until then
   muted_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
 
   CONSTRAINT muted_conversations_unique UNIQUE (wallet_address, conversation_id)
 );
 
+CREATE TRIGGER trg_muted_conversations_updated_at
+  BEFORE UPDATE ON public.muted_conversations
+  FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
 CREATE INDEX IF NOT EXISTS idx_muted_conversations_wallet ON public.muted_conversations (wallet_address);
 
 ALTER TABLE public.muted_conversations ENABLE ROW LEVEL SECURITY;
+
+-- TODO: Replace with wallet-address-based RLS when Supabase Auth is integrated.
 
 CREATE POLICY "muted_conversations_select_own"
   ON public.muted_conversations FOR SELECT USING (true);
@@ -349,6 +411,7 @@ CREATE POLICY "avatars_delete"
   ON storage.objects FOR DELETE USING (bucket_id = 'avatars');
 
 -- Storage policies — chat-media
+-- TODO: Replace with participant-based RLS when Supabase Auth is integrated.
 CREATE POLICY "chat_media_select"
   ON storage.objects FOR SELECT USING (bucket_id = 'chat-media');
 
@@ -419,8 +482,14 @@ DECLARE
   v_id TEXT;
   v_min TEXT := LEAST(p_wallet_a, p_wallet_b);
   v_max TEXT := GREATEST(p_wallet_a, p_wallet_b);
+  v_hash BIGINT;
 BEGIN
-  -- Check if already exists (in either direction)
+  -- Use advisory lock to prevent race conditions between concurrent calls
+  -- Hash the sorted pair to get a unique lock ID
+  v_hash := ('x' || substr(md5(v_min || v_max), 1, 16))::bit(64)::bigint;
+  PERFORM pg_advisory_xact_lock(v_hash);
+
+  -- Check if already exists (now safe from race conditions)
   SELECT id INTO v_id
   FROM public.conversations
   WHERE participant_min = v_min
@@ -428,26 +497,20 @@ BEGIN
   LIMIT 1;
 
   IF v_id IS NULL THEN
-    -- Build the deterministic id matching the app's pattern: "convo_{walletB}"
-    v_id := 'convo_' || p_wallet_b;
+    -- Build deterministic id from both sorted wallets: "convo_{md5(v_min || v_max).substr(0,16)}"
+    -- This ensures the same pair always produces the same ID, regardless of who initiated
+    v_id := 'convo_' || encode(digest(v_min || v_max, 'md5'), 'hex');
 
     INSERT INTO public.conversations (id, participant_a, participant_b)
     VALUES (v_id, p_wallet_a, p_wallet_b)
     ON CONFLICT DO NOTHING;
 
-    -- Fetch the id again in case of conflict
+    -- Fetch the id again in case of concurrent insert race (advisory lock should prevent this)
     SELECT id INTO v_id
     FROM public.conversations
     WHERE participant_min = v_min
       AND participant_max = v_max
     LIMIT 1;
-
-    -- If conflict on id (different pair, same wallet suffix), fall back to UUID
-    IF v_id IS NULL THEN
-      v_id := 'convo_' || gen_random_uuid()::text;
-      INSERT INTO public.conversations (id, participant_a, participant_b)
-      VALUES (v_id, p_wallet_a, p_wallet_b);
-    END IF;
   END IF;
 
   RETURN v_id;
@@ -481,7 +544,7 @@ RETURNS VOID LANGUAGE sql AS $$
   SET is_read = TRUE
   WHERE
     conversation_id = p_conversation_id
-    AND sender     <> p_reader_wallet
+    AND receiver    = p_reader_wallet
     AND is_read     = FALSE;
 $$;
 

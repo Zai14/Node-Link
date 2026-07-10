@@ -33,6 +33,7 @@ import { fetchMessagesByConversation } from "../../backend/Local database/SQLite
 import MessageBubble from "../../utils/ChatDetailUtils/MessageBubble";
 import { useThemeToggle } from "../../utils/GlobalUtils/ThemeProvider";
 import { EventBus, useChat } from "../../utils/ChatUtils/ChatContext";
+import { useConversationId } from "../../utils/ChatUtils/ConversationIdContext";
 import { markMessagesAsRead } from "../../backend/Local database/SQLite/MarkMessagesAsRead";
 import { BlurView } from "expo-blur";
 import { ChatDetailHandlerDependencies } from "../../utils/ChatDetailUtils/ChatHandlers/HandleDependencies";
@@ -219,7 +220,27 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     width: 0,
     height: 0,
   });
+  // Derive the receiver wallet from the navigation param (convo_{wallet})
   const receiverAddress = conversationId.replace("convo_", "");
+
+  // Resolve the canonical conversation ID via the shared context.
+  // The context pre-warms from AsyncStorage on mount, then this effect
+  // updates the state once the cache is ready.
+  const { resolveConversation, cacheReady } = useConversationId();
+  const [resolvedConversationId, setResolvedConversationId] =
+    useState<string>(conversationId);
+
+  // Only update resolvedConversationId when cacheReady changes.
+  // cacheReady becomes true AFTER the SQLite migration has run, so
+  // resolveConversation will have the latest cache with all mappings.
+  // Removing resolveConversation from the dep array prevents a premature
+  // update during the async yield between setCache() and migrateLegacyMessages().
+  useEffect(() => {
+    if (!cacheReady) return;
+    const { canonicalId } = resolveConversation(conversationId);
+    setResolvedConversationId(canonicalId);
+  }, [cacheReady, conversationId]);
+
   const [userAddress, setUserAddress] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<Message | null>(null);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(
@@ -237,7 +258,7 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handlerDependencies: ChatDetailHandlerDependencies = useMemo(
     () => ({
-      conversationId,
+      conversationId: resolvedConversationId,
       name,
       avatar,
       addOrUpdateChat,
@@ -262,7 +283,7 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       setSelectedMessages,
     }),
     [
-      conversationId,
+      resolvedConversationId,
       name,
       avatar,
       addOrUpdateChat,
@@ -309,7 +330,7 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
     const markAsRead = async () => {
       try {
-        await markMessagesAsRead(conversationId);
+        await markMessagesAsRead(resolvedConversationId);
       } catch (error) {
         console.error("Failed to mark messages as read:", error);
       }
@@ -318,22 +339,22 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     markAsRead();
 
     const handleNewMessage = (message: any) => {
-      if (message.conversationId === conversationId && isFocused) {
+      if (message.conversationId === resolvedConversationId && isFocused) {
         setTimeout(markAsRead, 100);
       }
     };
 
     EventBus.on("new-message", handleNewMessage);
     return () => EventBus.off("new-message", handleNewMessage);
-  }, [conversationId, isFocused]);
+  }, [resolvedConversationId, isFocused]);
 
   const onEndReached = useCallback(async () => {
     try {
-      await markMessagesAsRead(conversationId);
+      await markMessagesAsRead(resolvedConversationId);
     } catch (error) {
       console.error("Failed to mark messages as read:", error);
     }
-  }, [conversationId]);
+  }, [resolvedConversationId]);
 
   const cancelReply = useCallback(() => {
     setReplyMessage(null);
@@ -363,23 +384,25 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   ).current;
 
   // Load messages sorted newest-first for inverted FlatList
+  // After the SQLite migration in ConversationIdContext, all messages should
+  // use the canonical conversationId, so we only fetch from that one ID.
   useEffect(() => {
     const loadMessages = async () => {
       setIsLoading(true);
       await ensureDatabaseInitialized();
-      const fetched = await fetchMessagesByConversation(conversationId);
 
-      const sortedMessages = fetched.sort(
+      const msgs = await fetchMessagesByConversation(resolvedConversationId);
+      const sorted = msgs.sort(
         (a, b) =>
           (b.createdAt || parseInt(b.id, 10)) -
           (a.createdAt || parseInt(a.id, 10))
       );
 
-      setMessages(sortedMessages);
+      setMessages(sorted);
       setIsLoading(false);
     };
     loadMessages();
-  }, [conversationId]);
+  }, [resolvedConversationId]);
 
   useEffect(() => {
     const fetchUserAddress = async () => {
@@ -465,9 +488,9 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   }, [infoMessage, infoWindowPosition]);
 
   const handleProfilePress = () => {
-    const walletAddress = conversationId.replace("convo_", "");
-    if (walletAddress) {
-      navigation.navigate("UserProfile", { walletAddress });
+    // Use the receiverAddress extracted from the nav param, not the canonical ID
+    if (receiverAddress) {
+      navigation.navigate("UserProfile", { walletAddress: receiverAddress });
     }
   };
 
@@ -573,7 +596,7 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   // Handle new messages - prepend to newest-first array
   useEffect(() => {
     const handleNewMessage = (newMsg: Message) => {
-      if (newMsg.conversationId === conversationId) {
+      if (newMsg.conversationId === resolvedConversationId) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [newMsg, ...prev];
@@ -583,7 +606,7 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
     EventBus.on("new-message", handleNewMessage);
     return () => EventBus.off("new-message", handleNewMessage);
-  }, [conversationId]);
+  }, [resolvedConversationId]);
 
   // Handle received messages
   useEffect(() => {
@@ -758,12 +781,12 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             closeLongPressMenuWrapper();
 
             const updatedMessages = await fetchMessagesByConversation(
-              conversationId
+              resolvedConversationId
             );
             const lastMsg = updatedMessages[updatedMessages.length - 1];
             if (lastMsg) {
               addOrUpdateChat({
-                id: conversationId,
+                id: resolvedConversationId,
                 name,
                 message:
                   lastMsg.text ||

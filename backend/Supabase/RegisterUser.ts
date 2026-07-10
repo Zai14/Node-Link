@@ -424,7 +424,7 @@ export async function updateUserProfile(
 }
 
 /**
- * Check if username is available
+ * Check if username is available (case-insensitive)
  */
 export async function isUsernameAvailable(username: string): Promise<boolean> {
   try {
@@ -432,18 +432,19 @@ export async function isUsernameAvailable(username: string): Promise<boolean> {
       return false;
     }
 
+    // Use the RPC function which does case-insensitive matching via LOWER()
     const { data, error } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("username", username)
-      .maybeSingle();
+      .rpc('is_username_taken', {
+        p_username: username,
+        p_wallet_exclude: null,
+      });
 
     if (error) {
       console.error("Error checking username availability:", error);
       return false;
     }
 
-    return !data; // Available if no data found
+    return !data; // Available if not taken
   } catch (err) {
     console.error("Error checking username availability:", err);
     return false;
