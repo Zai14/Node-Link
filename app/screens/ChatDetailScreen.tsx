@@ -711,7 +711,7 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.headerContainer}>
         {isSelectionMode ? (
@@ -745,7 +745,8 @@ const ChatDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 style={styles.backButton}
                 onPress={() => navigation.goBack()}
               >
-                <Ionicons name="chevron-back" size={24} color="#007AFF" />
+                <Ionicons name="chevron-back" size={24} color="#007AFF" style={{ marginRight: 4 }} />
+                <Text style={styles.backButtonText}>Back</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.profileTapArea}
@@ -1004,17 +1005,18 @@ const getStyles = (theme: "light" | "dark") =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme === "dark" ? "#222" : "#EDEDED",
+      backgroundColor: theme === "dark" ? "#1C1C1D" : "#F2F2F2",
     },
     headerContainer: {
+      position: "relative",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      backgroundColor: theme === "dark" ? "#222" : "#F2F2F2",
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderBottomWidth: 1,
-      borderBottomColor: theme === "dark" ? "#444" : "#ccc",
+      height: 44,
+      paddingHorizontal: 16,
+      backgroundColor: theme === "dark" ? "#1C1C1D" : "#F2F2F2",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme === "dark" ? "#333" : "#E0E0E0",
     },
     headerLeft: {
       flexDirection: "row",
@@ -1026,7 +1028,14 @@ const getStyles = (theme: "light" | "dark") =>
       alignItems: "center",
     },
     backButton: {
-      paddingRight: 10,
+      width: 100,
+      flexDirection: "row",
+      alignItems: "center",
+      zIndex: 1,
+    },
+    backButtonText: {
+      fontSize: 17,
+      color: "#007AFF",
     },
     detailAvatar: {
       width: 40,
@@ -1035,9 +1044,8 @@ const getStyles = (theme: "light" | "dark") =>
       marginRight: 8,
     },
     detailUserName: {
-      fontSize: 20,
-      color: theme === "dark" ? "#FFF" : "#000",
-      left: 5,
+      fontSize: 17,
+      color: theme === "dark" ? "#FFF" : "#333333",
       fontFamily: "SF-Pro-Text-Medium",
     },
     callButton: {
@@ -1075,7 +1083,7 @@ const getStyles = (theme: "light" | "dark") =>
     },
     previewContainer: {
       padding: 8,
-      backgroundColor: theme === "dark" ? "#222" : "#fff",
+      backgroundColor: theme === "dark" ? "#1C1C1E" : "#fff",
       marginHorizontal: 10,
       borderRadius: 8,
       marginBottom: 8,
@@ -1085,7 +1093,7 @@ const getStyles = (theme: "light" | "dark") =>
     },
     inputWrapper: {
       flex: 1,
-      backgroundColor: theme === "dark" ? "#333" : "#fff",
+      backgroundColor: theme === "dark" ? "#2C2C2E" : "#fff",
       marginHorizontal: 6,
       borderRadius: 25,
       justifyContent: "center",
@@ -1094,7 +1102,7 @@ const getStyles = (theme: "light" | "dark") =>
     textInput: {
       paddingVertical: 8,
       fontSize: 16,
-      color: theme === "dark" ? "#FFF" : "#000",
+      color: theme === "dark" ? "#FFF" : "#333333",
     },
     modalContainer: {
       flex: 1,
@@ -1113,7 +1121,7 @@ const getStyles = (theme: "light" | "dark") =>
     cancelText: {
       fontSize: 16,
       fontWeight: "500",
-      color: "#ff0000ff",
+      color: "#FF3B30",
     },
     fullScreenVideo: {
       width: "90%",
@@ -1128,14 +1136,14 @@ const getStyles = (theme: "light" | "dark") =>
     dateSeparator: {
       alignSelf: "center",
       marginVertical: 10,
-      backgroundColor: theme === "dark" ? "#333" : "#CCC",
+      backgroundColor: theme === "dark" ? "#2C2C2E" : "#E0E0E0",
       padding: 6,
       borderRadius: 10,
     },
     dateText: {
       fontSize: 12,
       fontWeight: "bold",
-      color: theme === "dark" ? "#fff" : "#000",
+      color: theme === "dark" ? "#fff" : "#333333",
     },
     messageBubble: {
       marginVertical: 2,
@@ -1175,7 +1183,7 @@ const getStyles = (theme: "light" | "dark") =>
     selectionCount: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme === "dark" ? "#FFF" : "#000",
+      color: theme === "dark" ? "#FFF" : "#333333",
       marginLeft: 10,
     },
     selectAllButton: {
@@ -1189,22 +1197,22 @@ const getStyles = (theme: "light" | "dark") =>
     bottomBar: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme === "dark" ? "#222" : "#EDEDED",
+      backgroundColor: theme === "dark" ? "#1C1C1E" : "#F2F2F2",
       paddingHorizontal: 10,
       paddingVertical: 8,
-      borderTopWidth: 1,
-      borderTopColor: theme === "dark" ? "#444" : "#ccc",
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme === "dark" ? "#333" : "#E0E0E0",
       height: 64,
     },
     selectionBottomBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme === "dark" ? "#222" : "#EDEDED",
+      backgroundColor: theme === "dark" ? "#1C1C1E" : "#F2F2F2",
       paddingHorizontal: 20,
       paddingVertical: 8,
-      borderTopWidth: 1,
-      borderTopColor: theme === "dark" ? "#444" : "#ccc",
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme === "dark" ? "#333" : "#E0E0E0",
       height: 64,
     },
     deleteButton: {
@@ -1213,7 +1221,7 @@ const getStyles = (theme: "light" | "dark") =>
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 8,
-      backgroundColor: theme === "dark" ? "#333" : "#F8F8F8",
+      backgroundColor: theme === "dark" ? "#2C2C2E" : "#F8F8F8",
       minHeight: 40,
     },
     deleteButtonText: {
