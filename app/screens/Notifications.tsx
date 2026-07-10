@@ -188,7 +188,7 @@ export default function NotificationsScreen() {
             <Switch
               value={notificationsEnabled}
               onValueChange={onToggleNotifications}
-              trackColor={{ true: "#4CD964", false: "#ccc" }}
+              trackColor={{ true: "#34C759", false: isDarkMode ? "#38383A" : "#E9E9EA" }}
             />
           </View>
         </View>
@@ -200,7 +200,7 @@ export default function NotificationsScreen() {
             <Switch
               value={conversationTones}
               onValueChange={onToggle(setConversationTones)}
-              trackColor={{ true: "#4CD964", false: "#ccc" }}
+              trackColor={{ true: "#34C759", false: isDarkMode ? "#38383A" : "#E9E9EA" }}
             />
           </View>
           <View style={styles.row}>
@@ -257,7 +257,7 @@ export default function NotificationsScreen() {
             <Switch
               value={showPreview}
               onValueChange={onToggle(setShowPreview)}
-              trackColor={{ true: "#4CD964", false: "#ccc" }}
+              trackColor={{ true: "#34C759", false: isDarkMode ? "#38383A" : "#E9E9EA" }}
             />
           </View>
         </View>
@@ -360,17 +360,20 @@ export default function NotificationsScreen() {
 const getStyles = (isDarkMode: boolean) =>
   StyleSheet.create({
     container: {
-      flex: 1,
-      backgroundColor: isDarkMode ? "#000" : "#F5F5F5",
+      flex: 1, backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
     headerContainer: {
+      position: "relative",
       flexDirection: "row",
       alignItems: "center",
-      height: 50,
+      height: 44,
       paddingHorizontal: 16,
-      backgroundColor: isDarkMode ? "#000" : "#F5F5F5",
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
     },
     backButton: {
+      width: 100,
       flexDirection: "row",
       alignItems: "center",
       zIndex: 1,
@@ -390,19 +393,28 @@ const getStyles = (isDarkMode: boolean) =>
       alignItems: "center",
     },
     headerTitle: {
-      fontSize: 20,
+      fontSize: 17,
       fontWeight: "600",
-      color: isDarkMode ? "#fff" : "#000",
+      fontFamily: "SF-Pro-Text-Medium",
+      color: isDarkMode ? "#fff" : "#333333",
     },
     scrollContent: {
       paddingBottom: 32,
     },
     section: {
-      backgroundColor: isDarkMode ? "#1c1c1e" : "#fff",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
       marginHorizontal: 16,
-      borderRadius: 10,
+      borderRadius: 12,
       marginBottom: 16,
-      overflow: "hidden",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     row: {
       flexDirection: "row",
@@ -412,7 +424,7 @@ const getStyles = (isDarkMode: boolean) =>
     },
     label: {
       fontSize: 16,
-      color: isDarkMode ? "#fff" : "#000",
+      color: isDarkMode ? "#fff" : "#333333",
     },
     value: {
       fontSize: 16,
@@ -429,7 +441,7 @@ const getStyles = (isDarkMode: boolean) =>
     },
     optionText: {
       fontSize: 17,
-      color: isDarkMode ? "#fff" : "#000",
+      color: isDarkMode ? "#fff" : "#333333",
     },
     pickerH: {
       width: Platform.OS === "ios" ? 150 : 160,
@@ -485,7 +497,7 @@ const getStyles = (isDarkMode: boolean) =>
       color: "#007AFF",
     },
     button: {
-      backgroundColor: "#4CD964",
+      backgroundColor: "#34C759",
       paddingVertical: 12,
       paddingHorizontal: 24,
       borderRadius: 8,
@@ -498,6 +510,6 @@ const getStyles = (isDarkMode: boolean) =>
       padding: 16,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderColor: isDarkMode ? "#3a3a3c" : "#E0E0E0",
-      backgroundColor: isDarkMode ? "#000" : "#F5F5F5",
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
   });
