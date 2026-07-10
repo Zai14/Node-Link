@@ -12,6 +12,7 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -28,8 +29,7 @@ import {
   hasActiveWalletSession,
   signInWithWallet,
 } from "../../utils/AuthenticationUtils/SupabaseAuth";
-import ArrowSVG from "../../assets/images/arrow-icon.svg";
-import ProfileArrowSvg from "../../assets/images/profile-arrow-icon.svg";
+
 import { useLogout } from "../../utils/AuthenticationUtils/Logout";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -56,7 +56,7 @@ export default function SettingsScreen() {
   const isDarkMode = currentTheme === "dark";
   const [copied, setCopied] = useState(false);
   const navigation = useNavigation<SettingsNavigationProp>();
-  const logout = useLogout(); // Your logout function
+  const logout = useLogout();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
@@ -73,7 +73,6 @@ export default function SettingsScreen() {
         const address = await AsyncStorage.getItem("walletAddress");
         if (address) {
           setWalletAddress(address);
-          // Check Supabase Auth session status
           const active = await hasActiveWalletSession(address);
           setSupabaseAuthStatus(active ? "active" : "inactive");
         } else {
@@ -94,21 +93,18 @@ export default function SettingsScreen() {
       return;
     }
 
-    // First try to get from session memory (fastest)
     const sessionData = getUserDataFromSession(walletAddress);
     if (sessionData) {
       setUserData(sessionData);
       return;
     }
 
-    // If not in session, try to load from storage (now with wallet address parameter)
     const storageData = await loadUserDataFromStorage(walletAddress);
     if (storageData) {
       setUserData(storageData);
       return;
     }
 
-    // If still no data, try to refresh from Supabase
     console.log("No local data found, refreshing from Supabase...");
     try {
       const refreshedData = await refreshUserDataFromSupabase();
@@ -136,9 +132,6 @@ export default function SettingsScreen() {
     }, [walletAddress, loadUserData])
   );
 
-  /**
-   * Handle pull-to-refresh
-   */
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -180,7 +173,6 @@ export default function SettingsScreen() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            // Second confirmation with stronger warning
             Alert.alert(
               "🚨 Final Confirmation",
               `This is your last chance to cancel.\n\nYour account "${
@@ -208,25 +200,17 @@ export default function SettingsScreen() {
   // Create a logout function without the confirmation dialog for account deletion
   const logoutWithoutConfirmation = () => {
     return new Promise<void>((resolve) => {
-      // We need to bypass the confirmation dialog in your logout function
-      // Since your logout function shows an Alert, we'll handle the logout manually here
       const performLogout = async () => {
         try {
           console.log("🚪 Starting logout process after account deletion...");
-
-          // Clear all local data (similar to your logout function but without the alert)
           await AsyncStorage.clear();
           console.log("All local storage cleared");
-
-          // You might want to call setIsLoggedIn(false) here if you have access to it
-          // For now, we'll resolve and let the navigation happen
           resolve();
         } catch (error) {
           console.error("❌ Error during logout:", error);
-          resolve(); // Still resolve to continue the flow
+          resolve();
         }
       };
-
       performLogout();
     });
   };
@@ -243,17 +227,14 @@ export default function SettingsScreen() {
     try {
       console.log("🗑️ Starting account deletion process...");
 
-      // Step 1: Delete user from Supabase
       const result = await deleteUserByWallet(userData.walletAddress);
 
       if (result.success) {
         console.log("Account deleted successfully from Supabase");
 
-        // Clear local state immediately
         setUserData(null);
         setWalletAddress(null);
 
-        // Step 2: Show success message
         Alert.alert(
           "✅ Account Deleted",
           "Your account has been permanently deleted from our servers. You will now be logged out and all local data will be cleared.",
@@ -262,7 +243,6 @@ export default function SettingsScreen() {
               text: "OK",
               onPress: () => {
                 console.log("🚪 Proceeding with logout after account deletion");
-                // Call your logout function which will handle the confirmation and cleanup
                 logout();
               },
             },
@@ -293,17 +273,6 @@ export default function SettingsScreen() {
 
   const styles = getStyles(isDarkMode);
 
-  const RightArrow = () => (
-    <ArrowSVG width={styles.arrowIcon.width} height={styles.arrowIcon.height} />
-  );
-
-  const ProfileRightArrow = () => (
-    <ProfileArrowSvg
-      width={styles.profileArrowIcon.width}
-      height={styles.profileArrowIcon.height}
-    />
-  );
-
   const profileImageSource =
     userData && userData.avatar !== "default"
       ? { uri: userData.avatar }
@@ -311,17 +280,18 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <TouchableOpacity onPress={handleCopyAddress}>
+      {/* ═══════════════ Header ═══════════════ */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitleText}>Settings</Text>
+        <TouchableOpacity onPress={handleCopyAddress} style={styles.headerRight}>
           {copied ? (
             <View style={styles.copyContainer}>
               <Text style={styles.copyAddressButton}>Copied</Text>
               <Ionicons
                 name="checkmark"
-                size={20}
-                color="#007AFF"
-                style={{ marginLeft: 5 }}
+                size={18}
+                color="#34C759"
+                style={{ marginLeft: 4 }}
               />
             </View>
           ) : (
@@ -332,13 +302,17 @@ export default function SettingsScreen() {
 
       <ScrollView
         style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
+        {/* ═══════════════ PROFILE ═══════════════ */}
+        <Text style={styles.sectionHeader}>PROFILE</Text>
         <TouchableOpacity
-          style={styles.profileContainer}
+          style={styles.profileCard}
           onPress={() => navigation.navigate("MyProfile")}
+          activeOpacity={0.7}
         >
           <View style={styles.profileImageContainer}>
             <Image
@@ -358,14 +332,14 @@ export default function SettingsScreen() {
             )}
           </View>
           <View style={styles.profileTextContainer}>
-            <Text style={styles.profileName}>
+            <Text style={styles.profileName} numberOfLines={1}>
               {userData
                 ? userData.name && userData.name.length > 25
                   ? userData.name.slice(0, 25) + "..."
                   : userData.name ?? "NodeLink User"
                 : "NodeLink User"}
             </Text>
-            <Text style={styles.profileAddress}>
+            <Text style={styles.profileAddress} numberOfLines={1}>
               {userData?.walletAddress ?? "Loading..."}
             </Text>
             <View style={styles.authStatusRow}>
@@ -409,218 +383,295 @@ export default function SettingsScreen() {
               </Text>
             </View>
           </View>
-          <ProfileRightArrow />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
+          />
         </TouchableOpacity>
 
-        {/* Security Settings */}
-        <TouchableOpacity onPress={() => navigation.navigate("Security")}>
-          <View style={styles.settingsItem}>
+        {/* ═══════════════ SETTINGS ═══════════════ */}
+        <Text style={styles.sectionHeader}>SETTINGS</Text>
+        <View style={styles.cardSection}>
+          {/* Security */}
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("Security")}
+            activeOpacity={0.5}
+          >
             <View style={styles.itemLeft}>
               <Ionicons
                 name="shield-checkmark-outline"
-                size={24}
-                color={isDarkMode ? "#FFF" : "#000"}
+                size={22}
+                color={isDarkMode ? "#FFF" : "#333"}
                 style={{ marginRight: 12 }}
               />
-              <Text style={styles.itemTitle}>Security Settings</Text>
+              <Text style={styles.itemTitle}>Security</Text>
             </View>
-            <RightArrow />
-          </View>
-        </TouchableOpacity>
-
-        {/* Theme */}
-        <View style={styles.settingsItem}>
-          <View style={styles.itemLeft}>
             <Ionicons
-              name={isDarkMode ? "moon" : "sunny"}
-              size={24}
-              color={isDarkMode ? "#FFF" : "#000"}
-              style={{ marginRight: 12 }}
+              name="chevron-forward"
+              size={18}
+              color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
             />
-            <Text style={styles.itemTitle}>
-              {isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            </Text>
-          </View>
-          <Switch value={isDarkMode} onValueChange={toggleDarkMode} />
-        </View>
+          </TouchableOpacity>
 
-        {/* Notifications */}
-        <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-          <View style={styles.settingsItem}>
+          <View style={styles.cardDivider} />
+
+          {/* Theme */}
+          <View style={styles.settingsRow}>
+            <View style={styles.itemLeft}>
+              <Ionicons
+                name={isDarkMode ? "moon" : "sunny"}
+                size={22}
+                color={isDarkMode ? "#FFF" : "#333"}
+                style={{ marginRight: 12 }}
+              />
+              <Text style={styles.itemTitle}>
+                {isDarkMode ? "Light Mode" : "Dark Mode"}
+              </Text>
+            </View>
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleDarkMode}
+              trackColor={{ false: isDarkMode ? "#38383A" : "#E9E9EA", true: "#34C759" }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={isDarkMode ? "#38383A" : "#E9E9EA"}
+            />
+          </View>
+
+          <View style={styles.cardDivider} />
+
+          {/* Notifications */}
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("Notifications")}
+            activeOpacity={0.5}
+          >
             <View style={styles.itemLeft}>
               <Ionicons
                 name="notifications-outline"
-                size={24}
-                color={isDarkMode ? "#FFF" : "#000"}
+                size={22}
+                color={isDarkMode ? "#FFF" : "#333"}
                 style={{ marginRight: 12 }}
               />
               <Text style={styles.itemTitle}>Notifications</Text>
             </View>
-            <RightArrow />
-          </View>
-        </TouchableOpacity>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
+            />
+          </TouchableOpacity>
 
-        {/* Appearance */}
-        <TouchableOpacity onPress={() => navigation.navigate("Appearance")}>
-          <View style={styles.settingsItem}>
+          <View style={styles.cardDivider} />
+
+          {/* Appearance */}
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("Appearance")}
+            activeOpacity={0.5}
+          >
             <View style={styles.itemLeft}>
               <Ionicons
                 name="color-palette-outline"
-                size={24}
-                color={isDarkMode ? "#FFF" : "#000"}
+                size={22}
+                color={isDarkMode ? "#FFF" : "#333"}
                 style={{ marginRight: 12 }}
               />
               <Text style={styles.itemTitle}>Appearance</Text>
             </View>
-            <RightArrow />
-          </View>
-        </TouchableOpacity>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
+            />
+          </TouchableOpacity>
 
-        {/* Haptic Feedback */}
-        <TouchableOpacity onPress={() => navigation.navigate("HapticFeedback")}>
-          <View style={styles.settingsItem}>
+          <View style={styles.cardDivider} />
+
+          {/* Haptic Feedback */}
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("HapticFeedback")}
+            activeOpacity={0.5}
+          >
             <View style={styles.itemLeft}>
               <Ionicons
                 name="hardware-chip-outline"
-                size={24}
-                color={isDarkMode ? "#FFF" : "#000"}
+                size={22}
+                color={isDarkMode ? "#FFF" : "#333"}
                 style={{ marginRight: 12 }}
               />
-              <Text style={styles.itemTitle}>Turn on Haptic Feedback</Text>
+              <Text style={styles.itemTitle}>Haptic Feedback</Text>
             </View>
-            <RightArrow />
-          </View>
-        </TouchableOpacity>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
+            />
+          </TouchableOpacity>
 
-        {/* Privacy */}
-        <TouchableOpacity onPress={() => navigation.navigate("PrivacyPolicy")}>
-          <View style={styles.settingsItem}>
+          <View style={styles.cardDivider} />
+
+          {/* Privacy */}
+          <TouchableOpacity
+            style={[styles.settingsRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate("PrivacyPolicy")}
+            activeOpacity={0.5}
+          >
             <View style={styles.itemLeft}>
               <Ionicons
                 name="lock-closed-outline"
-                size={24}
-                color={isDarkMode ? "#FFF" : "#000"}
+                size={22}
+                color={isDarkMode ? "#FFF" : "#333"}
                 style={{ marginRight: 12 }}
               />
-              <Text style={styles.itemTitle}>Privacy and Security</Text>
+              <Text style={styles.itemTitle}>Privacy & Security</Text>
             </View>
-            <RightArrow />
-          </View>
-        </TouchableOpacity>
-
-        {/* Supabase Auth Status */}
-        <View style={styles.settingsItem}>
-          <View style={styles.itemLeft}>
             <Ionicons
-              name={
-                supabaseAuthStatus === "active"
-                  ? "checkmark-circle"
-                  : supabaseAuthStatus === "checking"
-                  ? "sync-circle-outline"
-                  : "close-circle"
-              }
-              size={24}
-              color={
-                supabaseAuthStatus === "active"
-                  ? "#34C759"
-                  : supabaseAuthStatus === "checking"
-                  ? "#FF9500"
-                  : "#FF3B30"
-              }
-              style={{ marginRight: 12 }}
+              name="chevron-forward"
+              size={18}
+              color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
             />
-            <View>
-              <Text style={styles.itemTitle}>Authentication Status</Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color:
-                    supabaseAuthStatus === "active"
-                      ? "#34C759"
-                      : supabaseAuthStatus === "checking"
-                      ? "#FF9500"
-                      : isDarkMode
-                      ? "#888"
-                      : "#999",
-                  marginTop: 2,
-                }}
-              >
-                {supabaseAuthStatus === "active"
-                  ? "Active"
-                  : supabaseAuthStatus === "checking"
-                  ? "Checking..."
-                  : supabaseAuthStatus === "error"
-                  ? "Error"
-                  : "Not connected"}
-              </Text>
-            </View>
-          </View>
-          {supabaseAuthStatus === "inactive" && walletAddress && (
-            <TouchableOpacity
-              onPress={async () => {
-                setSupabaseAuthStatus("checking");
-                const { error } = await signInWithWallet(walletAddress);
-                setSupabaseAuthStatus(error ? "inactive" : "active");
-              }}
-              style={{
-                backgroundColor: "#007AFF",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 8,
-              }}
-            >
-              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
-                Reconnect
-              </Text>
-            </TouchableOpacity>
-          )}
+          </TouchableOpacity>
         </View>
 
-        {/* Logout / Delete */}
-        <View style={styles.accountActionsContainer}>
-          <TouchableOpacity onPress={logout}>
-            <View style={styles.accountActionItem}>
-              <View style={styles.itemLeft}>
-                <Text style={[styles.itemTitle, { color: "#FF3B30" }]}>
-                  Logout
+        {/* ═══════════════ AUTHENTICATION ═══════════════ */}
+        <Text style={styles.sectionHeader}>AUTHENTICATION</Text>
+        <View style={styles.cardSection}>
+          <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+            <View style={styles.itemLeft}>
+              <Ionicons
+                name={
+                  supabaseAuthStatus === "active"
+                    ? "checkmark-circle"
+                    : supabaseAuthStatus === "checking"
+                    ? "sync-circle-outline"
+                    : "close-circle"
+                }
+                size={22}
+                color={
+                  supabaseAuthStatus === "active"
+                    ? "#34C759"
+                    : supabaseAuthStatus === "checking"
+                    ? "#FF9500"
+                    : "#FF3B30"
+                }
+                style={{ marginRight: 12 }}
+              />
+              <View>
+                <Text style={styles.itemTitle}>Cloud Sync</Text>
+                <Text
+                  style={[
+                    styles.itemSubtitle,
+                    {
+                      color:
+                        supabaseAuthStatus === "active"
+                          ? "#34C759"
+                          : supabaseAuthStatus === "checking"
+                          ? "#FF9500"
+                          : isDarkMode
+                          ? "#888"
+                          : "#999",
+                    },
+                  ]}
+                >
+                  {supabaseAuthStatus === "active"
+                    ? "Active"
+                    : supabaseAuthStatus === "checking"
+                    ? "Checking..."
+                    : supabaseAuthStatus === "error"
+                    ? "Error"
+                    : "Not connected"}
                 </Text>
               </View>
             </View>
+            {supabaseAuthStatus === "inactive" && walletAddress && (
+              <TouchableOpacity
+                onPress={async () => {
+                  setSupabaseAuthStatus("checking");
+                  const { error } = await signInWithWallet(walletAddress);
+                  setSupabaseAuthStatus(error ? "inactive" : "active");
+                }}
+                style={styles.reconnectButton}
+              >
+                <Text style={styles.reconnectButtonText}>Reconnect</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* ═══════════════ ACCOUNT ═══════════════ */}
+        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+        <View style={styles.cardSection}>
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={logout}
+            activeOpacity={0.5}
+          >
+            <View style={styles.itemLeft}>
+              <Ionicons
+                name="log-out-outline"
+                size={22}
+                color="#FF3B30"
+                style={{ marginRight: 12 }}
+              />
+              <Text style={[styles.itemTitle, { color: "#FF3B30" }]}>
+                Logout
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={isDarkMode ? "#8E8E93" : "#C7C7CC"}
+            />
           </TouchableOpacity>
 
+          <View style={styles.cardDivider} />
+
           <TouchableOpacity
+            style={[styles.settingsRow, { borderBottomWidth: 0 }]}
             onPress={handleDeleteAccount}
             disabled={isDeletingAccount}
-            style={[
-              styles.accountActionItem,
-              isDeletingAccount && styles.disabledItem,
-            ]}
+            activeOpacity={0.5}
           >
             <View style={styles.itemLeft}>
               {isDeletingAccount ? (
-                <>
-                  <ActivityIndicator
-                    size="small"
-                    color="#FF3B30"
-                    style={{ marginRight: 12 }}
-                  />
-                  <Text style={[styles.deleteTitle, { color: "#FF3B30" }]}>
-                    Deleting Account...
-                  </Text>
-                </>
+                <ActivityIndicator
+                  size="small"
+                  color="#FF3B30"
+                  style={{ marginRight: 12 }}
+                />
               ) : (
-                <>
-                  <Text style={[styles.deleteTitle, { color: "#FF3B30" }]}>
-                    Delete Account
-                  </Text>
-                </>
+                <Ionicons
+                  name="trash-outline"
+                  size={22}
+                  color="#FF3B30"
+                  style={{ marginRight: 12 }}
+                />
               )}
+              <Text
+                style={[
+                  styles.itemTitle,
+                  { color: "#FF3B30" },
+                  isDeletingAccount && { opacity: 0.6 },
+                ]}
+              >
+                {isDeletingAccount ? "Deleting Account..." : "Delete Account"}
+              </Text>
             </View>
             {!isDeletingAccount && (
-              <Ionicons name="warning-outline" size={20} color="#FF3B30" />
+              <Ionicons
+                name="warning-outline"
+                size={18}
+                color="#FF3B30"
+              />
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Bottom spacer for scroll */}
+        <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -632,45 +683,84 @@ const getStyles = (isDarkMode: boolean) =>
       flex: 1,
       backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
-    header: {
-      height: 60,
+
+    // ── Header ──────────────────────────────────────────────────────────────
+    headerContainer: {
+      position: "relative",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      height: 44,
       paddingHorizontal: 16,
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? "#333" : "#E0E0E0",
     },
-    headerTitle: {
-      fontSize: 25,
+    headerTitleText: {
+      fontSize: 17,
+      fontFamily: "SF-Pro-Text-Medium",
       fontWeight: "600",
       color: isDarkMode ? "#fff" : "#333333",
     },
+    headerRight: {
+      zIndex: 1,
+    },
     copyAddressButton: {
       fontSize: 13,
+      fontWeight: "500",
       color: "#007AFF",
     },
     copyContainer: {
       flexDirection: "row",
       alignItems: "center",
     },
+
+    // ── Scroll ──────────────────────────────────────────────────────────────
     scrollContainer: {
       flex: 1,
     },
-    profileContainer: {
+    scrollContent: {
+      flexGrow: 1,
+      paddingBottom: 40,
+    },
+
+    // ── Section Headers ────────────────────────────────────────────────────
+    sectionHeader: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: isDarkMode ? "#8E8E93" : "#6D6D72",
+      letterSpacing: 0.5,
+      marginTop: 24,
+      marginBottom: 8,
+      marginHorizontal: 20,
+    },
+
+    // ── Profile Card ───────────────────────────────────────────────────────
+    profileCard: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: isDarkMode ? "#121212" : "#FFFFFF",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      borderRadius: 12,
+      marginHorizontal: 16,
       padding: 16,
-      height: 120,
-      marginBottom: 35,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     profileImageContainer: {
       position: "relative",
-      marginRight: 12,
+      marginRight: 14,
     },
     profileImage: {
-      width: 75,
-      height: 75,
-      borderRadius: 40,
+      width: 70,
+      height: 70,
+      borderRadius: 35,
       backgroundColor: "#ccc",
     },
     imageLoadingOverlay: {
@@ -679,29 +769,28 @@ const getStyles = (isDarkMode: boolean) =>
       left: 0,
       right: 0,
       bottom: 0,
-      width: 75,
-      height: 75,
-      borderRadius: 40,
+      width: 70,
+      height: 70,
+      borderRadius: 35,
       backgroundColor: "rgba(0, 0, 0, 0.3)",
       justifyContent: "center",
       alignItems: "center",
     },
     profileTextContainer: {
       flex: 1,
-      paddingRight: 15,
-      paddingLeft: 5,
+      marginRight: 8,
     },
     profileName: {
-      fontSize: 19,
+      fontSize: 17,
       fontFamily: "SF-Pro-Text-Medium",
       fontWeight: "600",
       color: isDarkMode ? "#fff" : "#333333",
-      marginBottom: 4,
+      marginBottom: 2,
     },
     profileAddress: {
-      fontSize: 13,
+      fontSize: 12,
       color: "#1E90FF",
-      marginTop: 4,
+      marginTop: 2,
     },
     authStatusRow: {
       flexDirection: "row",
@@ -717,56 +806,62 @@ const getStyles = (isDarkMode: boolean) =>
     authStatusText: {
       fontSize: 12,
     },
-    settingsItem: {
+
+    // ── Card Sections ──────────────────────────────────────────────────────
+    cardSection: {
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      borderRadius: 12,
+      marginHorizontal: 16,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    settingsRow: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: isDarkMode ? "#121212" : "#FFFFFF",
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: isDarkMode ? "#333" : "#EFEFEF",
       justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+    },
+    cardDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: isDarkMode ? "#38383A" : "#E0E0E0",
     },
     itemLeft: {
       flexDirection: "row",
       alignItems: "center",
+      flex: 1,
     },
     itemTitle: {
-      fontSize: 16,
+      fontSize: 17,
       color: isDarkMode ? "#fff" : "#333333",
     },
-    deleteTitle: {
-      fontSize: 16,
-      color: "#EB5545",
+    itemSubtitle: {
+      fontSize: 12,
+      marginTop: 2,
     },
-    arrowIcon: {
-      width: 7,
-      height: 12,
-      marginLeft: 8,
-      tintColor: "#3C3C43",
+
+    // ── Reconnect Button ───────────────────────────────────────────────────
+    reconnectButton: {
+      backgroundColor: "#007AFF",
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 8,
     },
-    profileArrowIcon: {
-      width: 12,
-      height: 18,
-      marginLeft: 8,
-      tintColor: "#3C3C43",
+    reconnectButtonText: {
+      color: "#fff",
+      fontSize: 13,
+      fontWeight: "600",
     },
-    accountActionsContainer: {
-      marginTop: 35,
-      borderTopWidth: 1,
-      borderTopColor: isDarkMode ? "#333" : "#ddd",
-    },
-    accountActionItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: isDarkMode ? "#121212" : "#FFFFFF",
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: isDarkMode ? "#333" : "#EFEFEF",
-    },
-    disabledItem: {
-      opacity: 0.6,
+
+    // ── Misc ──────────────────────────────────────────────────────────────
+    bottomSpacer: {
+      height: 40,
     },
   });

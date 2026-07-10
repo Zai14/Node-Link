@@ -85,25 +85,35 @@ const AnimatedTabBarButton = (props: any) => {
   );
 };
 
-const getIOSBarStyle = (isDarkMode: boolean) => ({
-  height: 85,
-  backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
-  borderTopWidth: 1,
-  borderTopColor: isDarkMode ? "#333" : "#ccc",
-  elevation: 0,
-  shadowOpacity: 0,
-});
-
-const getAndroidBarStyle = (isDarkMode: boolean) => ({
-  height: 85,
-  backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
-  borderTopWidth: 1,
-  borderTopColor: isDarkMode ? "#333" : "#ccc",
-  elevation: 0,
-  shadowOpacity: 0,
-  marginBottom: 20,
-  paddingBottom: 30,
-});
+const getTabBarStyle = (isDarkMode: boolean) =>
+  Platform.select({
+    ios: {
+      height: 85,
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
+      borderTopWidth: 1,
+      borderTopColor: isDarkMode ? "#333" : "#ccc",
+      elevation: 0,
+      shadowOpacity: 0,
+    },
+    android: {
+      height: 85,
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
+      borderTopWidth: 1,
+      borderTopColor: isDarkMode ? "#333" : "#ccc",
+      elevation: 0,
+      shadowOpacity: 0,
+      marginBottom: 20,
+      paddingBottom: 30,
+    },
+    default: {
+      height: 85,
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#EAEAEA",
+      borderTopWidth: 1,
+      borderTopColor: isDarkMode ? "#333" : "#ccc",
+      elevation: 0,
+      shadowOpacity: 0,
+    },
+  });
 
 export default function BottomTabs() {
   const { currentTheme } = useThemeToggle();
@@ -175,10 +185,7 @@ export default function BottomTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarButton: (props) => <AnimatedTabBarButton {...props} />,
-        tabBarStyle:
-          Platform.OS === "ios"
-            ? getIOSBarStyle(isDarkMode)
-            : getAndroidBarStyle(isDarkMode),
+        tabBarStyle: getTabBarStyle(isDarkMode),
         tabBarActiveTintColor: isDarkMode ? "white" : "black",
         tabBarInactiveTintColor: "gray",
         tabBarIcon: ({ focused, size }) => {
