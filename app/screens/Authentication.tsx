@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  useColorScheme,
   TextInput,
   Alert,
   KeyboardAvoidingView,
@@ -26,6 +25,7 @@ import { handleConnectPress } from "../../utils/AuthenticationUtils/WalletConnec
 import { handleSupport } from "../../utils/AuthenticationUtils/HandleAuthScreenSupport";
 import { handleExit } from "../../utils/AuthenticationUtils/HandleAuthScreenExit";
 import { useAuth } from "../../utils/AuthenticationUtils/AuthContext";
+import { useThemeToggle } from "../../utils/GlobalUtils/ThemeProvider";
 import { RootStackParamList } from "../App";
 import { Ionicons } from "@expo/vector-icons";
 // Import Firebase phone auth functions
@@ -40,8 +40,9 @@ enum LoginMethod {
   EMAIL = "email",
 }
 
-export default function AuthScreen() {
-  const theme = useColorScheme();
+function AuthScreen() {
+  const { currentTheme } = useThemeToggle();
+  const isDarkMode = currentTheme === "dark";
   const navigation = useNavigation<AuthScreenNavigationProp>();
   const { setIsLoggedIn } = useAuth();
 
@@ -55,7 +56,7 @@ export default function AuthScreen() {
   // Login method and form states
   const [loginMethod, setLoginMethod] = useState<LoginMethod>(
     LoginMethod.METAMASK
-  ); // Default to Metamask
+  );
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -148,7 +149,7 @@ export default function AuthScreen() {
       verificationCode,
       confirm,
       fullPhoneNumber,
-      setWalletAddress, // This will store the phone number in walletAddress field
+      setWalletAddress,
       setIsLoggedIn,
       setAuthLoading,
       navigation
@@ -163,16 +164,14 @@ export default function AuthScreen() {
     setEmail("");
     setPassword("");
     setVerificationCode("");
-    setConfirm(null); // Reset Firebase confirmation
+    setConfirm(null);
     triggerTapHapticFeedback();
   };
 
-  const isDark = theme === "dark";
+  const styles = getStyles(isDarkMode);
 
   return (
-    <SafeAreaView
-      style={[isDark ? styles.darkContainer : styles.lightContainer]}
-    >
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
@@ -184,15 +183,14 @@ export default function AuthScreen() {
           >
             {/* Header */}
             <View style={styles.header}>
-              <Text
-                style={styles.headerButton}
+              <TouchableOpacity
                 onPress={() => {
                   handleExit();
                   triggerTapHapticFeedback();
                 }}
               >
-                Exit
-              </Text>
+                <Text style={styles.exitButton}>Exit</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
                   handleSupport();
@@ -201,7 +199,7 @@ export default function AuthScreen() {
               >
                 <Image
                   source={
-                    isDark
+                    isDarkMode
                       ? require("../../assets/images/support-logo-white.png")
                       : require("../../assets/images/support-logo-black.png")
                   }
@@ -212,57 +210,35 @@ export default function AuthScreen() {
 
             {/* Logo Section */}
             <View style={styles.logoSection}>
-              <Image
-                source={
-                  isDark
-                    ? require("../../assets/images/logo-white.png")
-                    : require("../../assets/images/logo-black.png")
-                }
-                style={styles.logo}
-              />
-
-              <Text
-                style={[
-                  styles.title,
-                  isDark ? styles.darkText : styles.lightText,
-                ]}
-              >
-                Node Link
-              </Text>
-              <Text
-                style={[
-                  styles.subtitle,
-                  isDark ? styles.darkText : styles.lightText,
-                ]}
-              >
+              <View style={styles.logoContainer}>
+                <Image
+                  source={
+                    isDarkMode
+                      ? require("../../assets/images/logo-white.png")
+                      : require("../../assets/images/logo-black.png")
+                  }
+                  style={styles.logo}
+                />
+              </View>
+              <Text style={styles.title}>Node Link</Text>
+              <Text style={styles.subtitle}>
                 Secure Decentralized P2P Messaging
               </Text>
             </View>
 
-            {/* Login Method Selector - Always Visible at Top */}
+            {/* Login Method Selector */}
             <View style={styles.selectorContainer}>
-              <Text
-                style={[
-                  styles.chooseMethodText,
-                  isDark ? styles.darkText : styles.lightText,
-                ]}
-              >
+              <Text style={styles.chooseMethodText}>
                 Choose your login method
               </Text>
 
-              <View
-                style={[
-                  styles.methodSelector,
-                  isDark && styles.darkMethodSelector,
-                ]}
-              >
+              <View style={styles.methodSelector}>
                 {/* Metamask Tab */}
                 <TouchableOpacity
                   style={[
                     styles.methodTab,
                     loginMethod === LoginMethod.METAMASK &&
                       styles.activeMethodTab,
-                    isDark && styles.darkMethodTab,
                   ]}
                   onPress={() => handleMethodChange(LoginMethod.METAMASK)}
                 >
@@ -279,7 +255,6 @@ export default function AuthScreen() {
                       styles.methodTabText,
                       loginMethod === LoginMethod.METAMASK &&
                         styles.activeMethodTabText,
-                      isDark && styles.darkText,
                     ]}
                   >
                     Metamask
@@ -291,7 +266,6 @@ export default function AuthScreen() {
                   style={[
                     styles.methodTab,
                     loginMethod === LoginMethod.PHONE && styles.activeMethodTab,
-                    isDark && styles.darkMethodTab,
                   ]}
                   onPress={() => handleMethodChange(LoginMethod.PHONE)}
                 >
@@ -303,7 +277,6 @@ export default function AuthScreen() {
                       styles.methodTabText,
                       loginMethod === LoginMethod.PHONE &&
                         styles.activeMethodTabText,
-                      isDark && styles.darkText,
                     ]}
                   >
                     Phone
@@ -315,7 +288,6 @@ export default function AuthScreen() {
                   style={[
                     styles.methodTab,
                     loginMethod === LoginMethod.EMAIL && styles.activeMethodTab,
-                    isDark && styles.darkMethodTab,
                   ]}
                   onPress={() => handleMethodChange(LoginMethod.EMAIL)}
                 >
@@ -327,7 +299,6 @@ export default function AuthScreen() {
                       styles.methodTabText,
                       loginMethod === LoginMethod.EMAIL &&
                         styles.activeMethodTabText,
-                      isDark && styles.darkText,
                     ]}
                   >
                     Email
@@ -340,52 +311,45 @@ export default function AuthScreen() {
             <View style={styles.loginFormContainer}>
               {/* Metamask Login */}
               {loginMethod === LoginMethod.METAMASK && (
-                <View style={styles.formContainer}>
+                <View style={styles.formCard}>
                   <TouchableOpacity
                     style={styles.connectButton}
                     onPress={onConnect}
                     disabled={loading}
+                    activeOpacity={0.85}
                   >
                     <Image
                       source={require("../../assets/images/metamask.png")}
-                      style={styles.icon}
+                      style={styles.buttonIcon}
                     />
                     <Text style={styles.connectButtonText}>
-                      {loading ? "Connecting..." : "Connect Metamask"}
+                      {loading ? "Connecting..." : "Connect Metamask Wallet"}
                     </Text>
                   </TouchableOpacity>
 
                   {walletAddress && (
-                    <Text style={styles.connectedText}>
-                      Connected: {walletAddress}
-                    </Text>
+                    <View style={styles.connectedContainer}>
+                      <Ionicons name="checkmark-circle" size={18} color="#34C759" />
+                      <Text style={styles.connectedText}>
+                        Connected: {walletAddress.slice(0, 10)}...
+                        {walletAddress.slice(-6)}
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}
 
-              {/* Phone Login with Country Code Picker */}
+              {/* Phone Login */}
               {loginMethod === LoginMethod.PHONE && (
-                <View style={styles.formContainer}>
+                <View style={styles.formCard}>
                   {!isVerificationStep ? (
                     <>
-                      <Text
-                        style={[
-                          styles.formTitle,
-                          isDark ? styles.darkText : styles.lightText,
-                        ]}
-                      >
+                      <Text style={styles.formTitle}>
                         Enter your phone number
                       </Text>
 
-                      {/* Country Code + Phone Number Input */}
                       <View style={styles.phoneInputContainer}>
-                        {/* Country Picker Button */}
-                        <TouchableOpacity
-                          style={[
-                            styles.countryPickerButton,
-                            isDark ? styles.darkInput : styles.lightInput,
-                          ]}
-                        >
+                        <View style={[styles.countryPickerButton, styles.inputBorder]}>
                           <CountryPicker
                             countryCode={countryCode}
                             withFilter
@@ -400,77 +364,59 @@ export default function AuthScreen() {
                             }}
                             containerButtonStyle={styles.countryPickerContainer}
                           />
-                        </TouchableOpacity>
+                        </View>
 
-                        {/* Phone Number Input */}
-                        <TextInput
-                          style={[
-                            styles.phoneInput,
-                            isDark ? styles.darkInput : styles.lightInput,
-                            isDark ? styles.darkText : styles.lightText,
-                          ]}
-                          placeholder="Phone number"
-                          placeholderTextColor={isDark ? "#888" : "#666"}
-                          value={phoneNumber}
-                          onChangeText={setPhoneNumber}
-                          keyboardType="phone-pad"
-                          textContentType="telephoneNumber"
-                          autoComplete="tel"
-                        />
+                        <View style={styles.phoneInputWrapper}>
+                          <TextInput
+                            style={styles.phoneInput}
+                            placeholder="Phone number"
+                            placeholderTextColor={isDarkMode ? "#8E8E93" : "#999"}
+                            value={phoneNumber}
+                            onChangeText={setPhoneNumber}
+                            keyboardType="phone-pad"
+                            textContentType="telephoneNumber"
+                            autoComplete="tel"
+                          />
+                        </View>
                       </View>
 
-                      {/* Display full number preview */}
                       {phoneNumber.trim() && (
-                        <Text
-                          style={[
-                            styles.phonePreview,
-                            isDark ? styles.darkText : styles.lightText,
-                          ]}
-                        >
-                          Full number: +{callingCode} {phoneNumber}
-                        </Text>
+                        <View style={styles.phonePreviewRow}>
+                          <Ionicons name="information-circle-outline" size={14} color={isDarkMode ? "#8E8E93" : "#999"} />
+                          <Text style={styles.phonePreview}>
+                            Full number: +{callingCode} {phoneNumber}
+                          </Text>
+                        </View>
                       )}
 
                       <TouchableOpacity
-                        style={styles.submitButton}
+                        style={[
+                          styles.primaryButton,
+                          (!phoneNumber.trim() || authLoading) && styles.buttonDisabled,
+                        ]}
                         onPress={handlePhoneLogin}
                         disabled={authLoading || !phoneNumber.trim()}
+                        activeOpacity={0.85}
                       >
-                        <Text style={styles.submitButtonText}>
-                          {authLoading
-                            ? "Sending Code..."
-                            : "Send Verification Code"}
+                        <Ionicons name="paper-plane" size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.primaryButtonText}>
+                          {authLoading ? "Sending Code..." : "Send Verification Code"}
                         </Text>
                       </TouchableOpacity>
                     </>
                   ) : (
                     <>
-                      <Text
-                        style={[
-                          styles.formTitle,
-                          isDark ? styles.darkText : styles.lightText,
-                        ]}
-                      >
+                      <Text style={styles.formTitle}>
                         Enter verification code
                       </Text>
-                      <Text
-                        style={[
-                          styles.formSubtitle,
-                          isDark ? styles.darkText : styles.lightText,
-                        ]}
-                      >
+                      <Text style={styles.formSubtitle}>
                         Code sent to +{callingCode} {phoneNumber}
                       </Text>
 
                       <TextInput
-                        style={[
-                          styles.input,
-                          styles.codeInput,
-                          isDark ? styles.darkInput : styles.lightInput,
-                          isDark ? styles.darkText : styles.lightText,
-                        ]}
+                        style={styles.codeInput}
                         placeholder="123456"
-                        placeholderTextColor={isDark ? "#888" : "#666"}
+                        placeholderTextColor={isDarkMode ? "#8E8E93" : "#999"}
                         value={verificationCode}
                         onChangeText={setVerificationCode}
                         keyboardType="number-pad"
@@ -479,17 +425,22 @@ export default function AuthScreen() {
                       />
 
                       <TouchableOpacity
-                        style={styles.submitButton}
+                        style={[
+                          styles.primaryButton,
+                          (authLoading || verificationCode.length !== 6) && styles.buttonDisabled,
+                        ]}
                         onPress={handleVerificationCode}
                         disabled={authLoading || verificationCode.length !== 6}
+                        activeOpacity={0.85}
                       >
-                        <Text style={styles.submitButtonText}>
+                        <Ionicons name="shield-checkmark" size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.primaryButtonText}>
                           {authLoading ? "Verifying..." : "Verify Code"}
                         </Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={styles.backToPhoneButton}
+                        style={styles.backButton}
                         onPress={() => {
                           setIsVerificationStep(false);
                           setVerificationCode("");
@@ -497,13 +448,9 @@ export default function AuthScreen() {
                           triggerTapHapticFeedback();
                         }}
                       >
-                        <Text
-                          style={[
-                            styles.backToPhoneText,
-                            isDark ? styles.darkText : styles.lightText,
-                          ]}
-                        >
-                          ← Back to phone number
+                        <Ionicons name="arrow-back" size={16} color="#007AFF" style={{ marginRight: 4 }} />
+                        <Text style={styles.backButtonText}>
+                          Back to phone number
                         </Text>
                       </TouchableOpacity>
                     </>
@@ -513,53 +460,61 @@ export default function AuthScreen() {
 
               {/* Email Login */}
               {loginMethod === LoginMethod.EMAIL && (
-                <View style={styles.formContainer}>
-                  <Text
-                    style={[
-                      styles.formTitle,
-                      isDark ? styles.darkText : styles.lightText,
-                    ]}
-                  >
+                <View style={styles.formCard}>
+                  <Text style={styles.formTitle}>
                     Sign in with email
                   </Text>
 
-                  <TextInput
-                    style={[
-                      styles.input,
-                      isDark ? styles.darkInput : styles.lightInput,
-                      isDark ? styles.darkText : styles.lightText,
-                    ]}
-                    placeholder="Email address"
-                    placeholderTextColor={isDark ? "#888" : "#666"}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    textContentType="emailAddress"
-                    autoComplete="email"
-                    autoCapitalize="none"
-                  />
+                  <View style={styles.inputRow}>
+                    <Ionicons
+                      name="mail-outline"
+                      size={20}
+                      color={isDarkMode ? "#8E8E93" : "#999"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email address"
+                      placeholderTextColor={isDarkMode ? "#8E8E93" : "#999"}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      textContentType="emailAddress"
+                      autoComplete="email"
+                      autoCapitalize="none"
+                    />
+                  </View>
 
-                  <TextInput
-                    style={[
-                      styles.input,
-                      isDark ? styles.darkInput : styles.lightInput,
-                      isDark ? styles.darkText : styles.lightText,
-                    ]}
-                    placeholder="Password"
-                    placeholderTextColor={isDark ? "#888" : "#666"}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    textContentType="password"
-                    autoComplete="password"
-                  />
+                  <View style={styles.inputRow}>
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color={isDarkMode ? "#8E8E93" : "#999"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Password"
+                      placeholderTextColor={isDarkMode ? "#8E8E93" : "#999"}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                      textContentType="password"
+                      autoComplete="password"
+                    />
+                  </View>
 
                   <TouchableOpacity
-                    style={styles.submitButton}
+                    style={[
+                      styles.primaryButton,
+                      (authLoading || !email.trim() || !password.trim()) && styles.buttonDisabled,
+                    ]}
                     onPress={handleEmailLogin}
                     disabled={authLoading || !email.trim() || !password.trim()}
+                    activeOpacity={0.85}
                   >
-                    <Text style={styles.submitButtonText}>
+                    <Ionicons name="log-in-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.primaryButtonText}>
                       {authLoading ? "Signing In..." : "Sign In"}
                     </Text>
                   </TouchableOpacity>
@@ -569,18 +524,8 @@ export default function AuthScreen() {
           </ScrollView>
 
           {/* Fixed Bottom Terms & Privacy */}
-          <View
-            style={[
-              styles.fixedBottomContainer,
-              isDark && styles.darkFixedBottomContainer,
-            ]}
-          >
-            <Text
-              style={[
-                styles.termsText,
-                isDark ? styles.darkText : styles.lightText,
-              ]}
-            >
+          <View style={styles.fixedBottomContainer}>
+            <Text style={styles.termsText}>
               By logging in, you agree to our{" "}
               <Text
                 style={styles.link}
@@ -604,285 +549,390 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  lightContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  darkContainer: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  mainContainer: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  header: {
-    width: "100%",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 3,
-    marginBottom: 20,
-  },
-  headerButton: {
-    color: "#007AFF",
-    fontSize: 21,
-  },
-  supportIcon: {
-    width: 25,
-    height: 25,
-  },
-  logoSection: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    marginBottom: 8,
-    fontFamily: "MontserratAlternates-Regular",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginTop: 10,
-    fontFamily: "Inter_28pt-Medium",
-    textAlign: "center",
-  },
-  selectorContainer: {
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  chooseMethodText: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  methodSelector: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
-    borderRadius: 15,
-    padding: 4,
-    width: "100%",
-  },
-  darkMethodSelector: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-  },
-  methodTab: {
-    flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    marginHorizontal: 2,
-  },
-  darkMethodTab: {
-    backgroundColor: "transparent",
-  },
-  activeMethodTab: {
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const getStyles = (isDarkMode: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  tabIcon: {
-    width: 24,
-    height: 20,
-    marginBottom: 6,
-    opacity: 0.6,
-  },
-  activeTabIcon: {
-    opacity: 1,
-  },
-  tabIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  phoneTabIcon: {
-    backgroundColor: "#34C759",
-  },
-  emailTabIcon: {
-    backgroundColor: "#007AFF",
-  },
-  methodTabText: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    opacity: 0.6,
-  },
-  activeMethodTabText: {
-    opacity: 1,
-    color: "#0376C9",
-  },
-  loginFormContainer: {
-    width: "100%",
-    alignItems: "center",
-  },
-  formContainer: {
-    width: "100%",
-    alignItems: "center",
-  },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  formSubtitle: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  input: {
-    width: "100%",
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  lightInput: {
-    backgroundColor: "#f8f9fa",
-    borderColor: "#e9ecef",
-  },
-  darkInput: {
-    backgroundColor: "#2c2c2e",
-    borderColor: "#48484a",
-  },
-  codeInput: {
-    fontSize: 24,
-    fontWeight: "bold",
-    letterSpacing: 8,
-    textAlign: "center",
-  },
-  phoneInputContainer: {
-    flexDirection: "row",
-    width: "100%",
-    marginBottom: 16,
-    gap: 8,
-  },
-  countryPickerButton: {
-    paddingVertical: 15,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    minWidth: 80,
-  },
-  countryPickerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  phoneInput: {
-    flex: 1,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    fontSize: 16,
-  },
-  phonePreview: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 16,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  connectButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0376C9",
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 15,
-    marginBottom: 20,
-  },
-  submitButton: {
-    backgroundColor: "#0376C9",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    width: "100%",
-    alignItems: "center",
-  },
-  icon: {
-    width: 24,
-    height: 20,
-    marginRight: 10,
-  },
-  connectButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  connectedText: {
-    marginTop: 20,
-    fontSize: 14,
-    color: "#0FA958",
-  },
-  backToPhoneButton: {
-    marginTop: 15,
-  },
-  backToPhoneText: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  fixedBottomContainer: {
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0, 0, 0, 0.1)",
-  },
-  darkFixedBottomContainer: {
-    borderTopColor: "rgba(255, 255, 255, 0.1)",
-  },
-  termsText: {
-    fontSize: 11,
-    textAlign: "center",
-    opacity: 0.8,
-  },
-  link: {
-    color: "#007AFF",
-    textDecorationLine: "underline",
-  },
-  lightText: {
-    color: "#000",
-  },
-  darkText: {
-    color: "#FFF",
-  },
-});
+    keyboardAvoidingView: {
+      flex: 1,
+    },
+    mainContainer: {
+      flex: 1,
+      justifyContent: "space-between",
+    },
+    scrollContainer: {
+      flexGrow: 1,
+      paddingHorizontal: 20,
+      paddingVertical: 20,
+    },
+
+    // ── Header ────────────────────────────────────────────────────────────
+    header: {
+      width: "100%",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: 3,
+      marginBottom: 20,
+    },
+    exitButton: {
+      color: "#007AFF",
+      fontSize: 17,
+      fontWeight: "500",
+    },
+    supportIcon: {
+      width: 25,
+      height: 25,
+    },
+
+    // ── Logo ──────────────────────────────────────────────────────────────
+    logoSection: {
+      alignItems: "center",
+      marginBottom: 32,
+    },
+    logoContainer: {
+      width: 100,
+      height: 100,
+      borderRadius: 24,
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 6,
+        },
+        android: { elevation: 3 },
+      }),
+    },
+    logo: {
+      width: 70,
+      height: 70,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      marginBottom: 8,
+      fontFamily: "MontserratAlternates-Regular",
+      textAlign: "center",
+      color: isDarkMode ? "#fff" : "#333",
+    },
+    subtitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      marginTop: 6,
+      fontFamily: "Inter_28pt-Medium",
+      textAlign: "center",
+      color: isDarkMode ? "#8E8E93" : "#8E8E93",
+    },
+
+    // ── Method Selector ──────────────────────────────────────────────────
+    selectorContainer: {
+      width: "100%",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    chooseMethodText: {
+      fontSize: 15,
+      fontWeight: "600",
+      marginBottom: 14,
+      textAlign: "center",
+      color: isDarkMode ? "#ddd" : "#555",
+    },
+    methodSelector: {
+      flexDirection: "row",
+      backgroundColor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+      borderRadius: 14,
+      padding: 4,
+      width: "100%",
+    },
+    methodTab: {
+      flex: 1,
+      flexDirection: "column",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderRadius: 11,
+      marginHorizontal: 2,
+    },
+    activeMethodTab: {
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#fff",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.1,
+          shadowRadius: 3,
+        },
+        android: { elevation: 3 },
+      }),
+    },
+    tabIcon: {
+      width: 24,
+      height: 20,
+      marginBottom: 6,
+      opacity: 0.5,
+    },
+    activeTabIcon: {
+      opacity: 1,
+    },
+    tabIconContainer: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 6,
+    },
+    phoneTabIcon: {
+      backgroundColor: "#34C759",
+    },
+    emailTabIcon: {
+      backgroundColor: "#007AFF",
+    },
+    methodTabText: {
+      fontSize: 12,
+      fontWeight: "600",
+      textAlign: "center",
+      color: isDarkMode ? "#8E8E93" : "#999",
+    },
+    activeMethodTabText: {
+      color: "#007AFF",
+    },
+
+    // ── Forms ────────────────────────────────────────────────────────────
+    loginFormContainer: {
+      width: "100%",
+      alignItems: "center",
+    },
+    formCard: {
+      width: "100%",
+      backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF",
+      borderRadius: 14,
+      padding: 20,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    formTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      marginBottom: 16,
+      textAlign: "center",
+      color: isDarkMode ? "#fff" : "#333",
+    },
+    formSubtitle: {
+      fontSize: 14,
+      color: isDarkMode ? "#8E8E93" : "#999",
+      marginBottom: 20,
+      textAlign: "center",
+    },
+
+    // ── Connect Button (Metamask) ──────────────────────────────────────
+    connectButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#007AFF",
+      paddingVertical: 16,
+      paddingHorizontal: 24,
+      borderRadius: 14,
+      width: "100%",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#007AFF",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+        },
+        android: { elevation: 4 },
+      }),
+    },
+    buttonIcon: {
+      width: 22,
+      height: 22,
+      marginRight: 10,
+    },
+    connectButtonText: {
+      color: "#fff",
+      fontSize: 17,
+      fontWeight: "600",
+    },
+    connectedContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 16,
+      padding: 12,
+      backgroundColor: isDarkMode ? "#1A2E1A" : "#F0FFF0",
+      borderRadius: 10,
+    },
+    connectedText: {
+      fontSize: 14,
+      color: "#34C759",
+      fontWeight: "500",
+      marginLeft: 8,
+      flex: 1,
+    },
+
+    // ── Input Fields ─────────────────────────────────────────────────────
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F8F9FA",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      marginBottom: 14,
+      paddingHorizontal: 14,
+    },
+    inputIcon: {
+      marginRight: 10,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: isDarkMode ? "#fff" : "#333",
+    },
+
+    // ── Phone Input ──────────────────────────────────────────────────────
+    phoneInputContainer: {
+      flexDirection: "row",
+      width: "100%",
+      marginBottom: 12,
+      gap: 10,
+    },
+    inputBorder: {
+      borderWidth: 1,
+      borderColor: isDarkMode ? "#38383A" : "#E0E0E0",
+    },
+    countryPickerButton: {
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+      minWidth: 80,
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F8F9FA",
+    },
+    countryPickerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    phoneInputWrapper: {
+      flex: 1,
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F8F9FA",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      paddingHorizontal: 14,
+      justifyContent: "center",
+    },
+    phoneInput: {
+      fontSize: 16,
+      color: isDarkMode ? "#fff" : "#333",
+      paddingVertical: 14,
+    },
+    phonePreviewRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    phonePreview: {
+      fontSize: 13,
+      color: isDarkMode ? "#8E8E93" : "#999",
+      marginLeft: 4,
+      fontWeight: "500",
+    },
+
+    // ── Code Input ───────────────────────────────────────────────────────
+    codeInput: {
+      width: "100%",
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      backgroundColor: isDarkMode ? "#2C2C2E" : "#F8F9FA",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      fontSize: 28,
+      fontWeight: "700",
+      letterSpacing: 10,
+      textAlign: "center",
+      color: isDarkMode ? "#fff" : "#333",
+      marginBottom: 16,
+    },
+
+    // ── Primary Button ───────────────────────────────────────────────────
+    primaryButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#007AFF",
+      paddingVertical: 15,
+      paddingHorizontal: 24,
+      borderRadius: 12,
+      width: "100%",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#007AFF",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 4,
+        },
+        android: { elevation: 4 },
+      }),
+    },
+    primaryButtonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+
+    // ── Back Button (Phone verification) ────────────────────────────────
+    backButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 16,
+      paddingVertical: 8,
+    },
+    backButtonText: {
+      fontSize: 15,
+      color: "#007AFF",
+      fontWeight: "500",
+    },
+
+    // ── Bottom Bar ──────────────────────────────────────────────────────
+    fixedBottomContainer: {
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: isDarkMode ? "#38383A" : "#E0E0E0",
+      backgroundColor: isDarkMode ? "#1C1C1D" : "#F2F2F2",
+    },
+    termsText: {
+      fontSize: 11,
+      textAlign: "center",
+      color: isDarkMode ? "#8E8E93" : "#999",
+      lineHeight: 16,
+    },
+    link: {
+      color: "#007AFF",
+      textDecorationLine: "underline",
+    },
+  });
+
+export default AuthScreen;
