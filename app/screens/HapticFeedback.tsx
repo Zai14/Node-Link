@@ -1,6 +1,7 @@
 // HapticFeedbackScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Switch, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -97,7 +98,7 @@ export default function HapticFeedbackScreen() {
   const styles = getStyles(isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={24} color="#007AFF" style={{ marginRight: 4 }} />
@@ -108,7 +109,8 @@ export default function HapticFeedbackScreen() {
         </View>
       </View>
       
-      {/* Tap Settings Group */}
+      {/* ═══════════════ Tap Settings ═══════════════ */}
+      <Text style={styles.sectionHeader}>TAP FEEDBACK</Text>
       <View style={styles.listContainer}>
         <View style={styles.listItem}>
           <Text style={styles.optionText}>Tap Feedback</Text>
@@ -140,7 +142,8 @@ export default function HapticFeedbackScreen() {
         )}
       </View>
 
-      {/* Hold Settings Group */}
+      {/* ═══════════════ Hold Settings ═══════════════ */}
+      <Text style={styles.sectionHeader}>HOLD FEEDBACK</Text>
       <View style={styles.listContainer}>
         <View style={styles.listItem}>
           <Text style={styles.optionText}>Hold Feedback</Text>
@@ -185,9 +188,11 @@ const getStyles = (isDarkMode: boolean) =>
       position: 'relative',
       flexDirection: 'row',
       alignItems: 'center',
-      height: 40,
+      height: 44,
       paddingHorizontal: 16,
       backgroundColor: isDarkMode ? '#1C1C1D' : '#F2F2F2',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDarkMode ? '#333' : '#E0E0E0',
     },
     backButton: {
       width: 100,
@@ -210,17 +215,25 @@ const getStyles = (isDarkMode: boolean) =>
       zIndex: 0,
     },
     headerTitleText: {
-      fontSize: 20,
+      fontSize: 17,
       fontFamily: 'SF-Pro-Text-Medium',
       fontWeight: '600',
       color: isDarkMode ? '#fff' : '#333333',
     },
     listContainer: {
-      marginTop: 20,
+      marginBottom: 0,
       borderRadius: 12,
-      marginHorizontal: 20,
-      overflow: 'hidden',
-      backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF',
+      marginHorizontal: 16,
+      backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isDarkMode ? 0.3 : 0.08,
+          shadowRadius: 4,
+        },
+        android: { elevation: 2 },
+      }),
     },
     listItem: {
       flexDirection: 'row',
@@ -231,9 +244,18 @@ const getStyles = (isDarkMode: boolean) =>
       borderBottomWidth: 1,
       borderBottomColor: isDarkMode ? '#48484A' : '#EFEFEF',
     },
+    sectionHeader: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: isDarkMode ? '#8E8E93' : '#6D6D72',
+      letterSpacing: 0.5,
+      marginTop: 24,
+      marginBottom: 8,
+      marginHorizontal: 20,
+    },
     optionText: {
       fontSize: 17,
-      color: isDarkMode ? '#fff' : '#000',
+      color: isDarkMode ? '#fff' : '#333333',
     },
     picker: {
       width: Platform.OS === 'ios' ? 150 : 160, // Adjusted for Android
